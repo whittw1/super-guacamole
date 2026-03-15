@@ -1,9 +1,0 @@
-{
-  "name": "Audit Field Collector",
-  "short_name": "Audit",
-  "start_url": "./index.html",
-  "display": "browser",
-  "background_color": "#1a1f2e",
-  "theme_color": "#1a1f2e",
-  "description": "Field audit documentation, finding capture, and structured export for DLA/HGS site visits"
-}
