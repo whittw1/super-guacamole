@@ -1,0 +1,9 @@
+{
+  "name": "DLA Site Notes",
+  "short_name": "DLA Notes",
+  "start_url": "./notes.html",
+  "display": "browser",
+  "background_color": "#1a1f2e",
+  "theme_color": "#1a1f2e",
+  "description": "DLA site inspection notes and Word document export for HGS Engineering field visits"
+}
