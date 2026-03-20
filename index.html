@@ -7,6 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
 <title>DLA Photo Collector</title>
 <script>
 if ('serviceWorker' in navigator) {
@@ -652,7 +653,7 @@ if ('serviceWorker' in navigator) {
 <div class="bottom-bar">
   <div>
     <div class="entry-count"><strong id="entryCountNum">0</strong> entries saved</div>
-    <div id="storageIndicator">&#128190; <span id="storageUsed">0</span>% storage used</div>
+    <div id="storageIndicator"><span id="storageMsg"></span></div>
   </div>
   <div style="display:flex;gap:8px;">
     <button class="btn btn-warning btn-sm" onclick="saveEntryAndNew()">Save &amp; New &#9654;</button>
@@ -678,6 +679,7 @@ if ('serviceWorker' in navigator) {
     <div class="dialog-actions">
       <button class="btn btn-outline btn-sm" onclick="closeExportDialog()">Cancel</button>
       <button class="btn btn-success btn-sm" onclick="runExport()">&#128230; Export ZIP</button>
+      <button class="btn btn-accent btn-sm" onclick="generatePhotoLog()" title="Generate Appendix C.2 Photo Log (.docx)">&#128196; Photo Log</button>
     </div>
   </div>
 </div>
@@ -1164,11 +1166,17 @@ function handlePhoto(input, slotId) {
       const dataUrl = canvas.toDataURL('image/jpeg', settings.quality);
       const sizeKB  = Math.round(dataUrl.length * 0.75 / 1024);
 
-      // Persist
-      savePhotoFallback(dbKey, dataUrl);
+      // Persist — try IndexedDB first, only fall back to localStorage if IDB
+      // is unavailable or the write fails. Avoids filling localStorage with
+      // redundant full-resolution base64 copies on normal sessions.
       if (idbAvailable) {
         savePhotoToDB(dbKey, dataUrlToUint8Array(dataUrl).buffer, 'image/jpeg')
-          .catch(() => { idbAvailable = false; });
+          .catch(() => {
+            idbAvailable = false;
+            savePhotoFallback(dbKey, dataUrl); // IDB failed — use fallback
+          });
+      } else {
+        savePhotoFallback(dbKey, dataUrl); // IDB not available — use fallback
       }
 
       // Thumbnail for UI
@@ -1438,9 +1446,340 @@ async function runExport() {
     URL.revokeObjectURL(url);
     const endRef = fmtRef(parsed.prefix, counter - 1, parsed.digits);
     showToast(`Exported ${allEntries.length} entries, ${photoCount} photos (${pStr}\u2013${endRef})`);
+
+    // Clean up any localStorage fallback copies now that export succeeded.
+    // These are only needed if IDB was unavailable; once exported they're redundant.
+    try {
+      const fallbackKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('photo_full_')) fallbackKeys.push(k);
+      }
+      fallbackKeys.forEach(k => localStorage.removeItem(k));
+      if (fallbackKeys.length > 0) console.log(`Cleaned ${fallbackKeys.length} localStorage fallback photo(s)`);
+    } catch(e) {}
   } catch(e) {
     console.error('Export error:', e);
     showToast('Export error — try again', true);
+  }
+}
+
+// ============================================================================
+// PHOTO LOG (Appendix C.2) DOCX EXPORT
+// ============================================================================
+async function generatePhotoLog() {
+  const pStr   = document.getElementById('refStart').value.trim();
+  const parsed = parseRef(pStr);
+  if (!parsed) { showToast('Invalid reference number', true); return; }
+  closeExportDialog();
+
+  if (typeof docx === 'undefined') {
+    showToast('docx library not loaded \u2014 check connection', true);
+    return;
+  }
+
+  // Collect all entries including any unsaved current entry
+  let allEntries = JSON.parse(JSON.stringify(savedEntries));
+  const loc  = document.getElementById('entryLocation').value.trim();
+  const det  = document.getElementById('entryDetails').value.trim();
+  if (loc || det || Object.keys(currentPhotos).length > 0) {
+    allEntries.push({
+      id:        currentEntryId,
+      siteName:  document.getElementById('siteName').value.trim(),
+      location:  loc,
+      details:   det,
+      timestamp: new Date().toISOString(),
+      photos:    Object.assign({}, currentPhotos)
+    });
+  }
+
+  if (allEntries.length === 0) { showToast('Nothing to export', true); return; }
+  showToast('Building Photo Log\u2026');
+
+  const D = docx;
+
+  // -- Collect all photos in order with captions --
+  let counter = parsed.num;
+  const photoItems = []; // { bytes, type, caption, ref }
+
+  async function getBytes(dbKey, mimeType) {
+    if (idbAvailable && dbKey) {
+      try {
+        const r = await getPhotoFromDB(dbKey);
+        if (r && r.data) return { bytes: new Uint8Array(r.data), type: r.type || mimeType };
+      } catch(e) {}
+    }
+    const fallback = getPhotoFallback(dbKey);
+    if (fallback) {
+      return { bytes: dataUrlToUint8Array(fallback), type: fallback.split(';')[0].split(':')[1] || mimeType };
+    }
+    return null;
+  }
+
+  for (const entry of allEntries) {
+    const allSlots = Object.keys(entry.photos || {}).sort((a, b) => {
+      const order = s => s === 'p_main' ? 0 : s === 'p_wide' ? 1 : 2 + parseInt(s.replace('p_extra_','') || 0);
+      return order(a) - order(b);
+    });
+    for (const slot of allSlots) {
+      const info = entry.photos[slot];
+      if (info && info.dbKey) {
+        const pd = await getBytes(info.dbKey, info.fileType || 'image/jpeg');
+        if (pd) {
+          const ref = fmtRef(parsed.prefix, counter++, parsed.digits);
+          // Build caption: "location - details" or just details or location
+          let caption = '';
+          if (entry.location && entry.details) caption = entry.location + ' \u2013 ' + entry.details;
+          else caption = entry.location || entry.details || '';
+          photoItems.push({ bytes: pd.bytes, type: pd.type, caption, ref });
+        }
+      }
+    }
+  }
+
+  if (photoItems.length === 0) { showToast('No photos to export', true); return; }
+
+  // -- Template constants matching Appendix C.2 --
+  const IMG_SIZE  = 2095500;     // EMU (~2.3 inches square)
+  const COL_W     = 4860;        // DXA per photo column
+  const GAP_W     = 360;         // DXA spacer column
+  const TBL_W     = COL_W * 2 + GAP_W; // 10080 DXA
+  const INNER_W   = 4700;        // inner nested table width
+  const NAVY      = '1B3A5C';
+  const DARK_TEXT  = '1A1A1A';
+  const BLUE_LINE  = '2E75B6';
+  const BORDER_CLR = 'B8C8D8';
+  const CAPTION_BG = 'E8EEF4';
+  const GRAY_TEXT  = '5A6A7A';
+  const FONT       = 'Arial';
+
+  const noBorder = { style: D.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
+  const thinBorder = { style: D.BorderStyle.SINGLE, size: 1, color: BORDER_CLR };
+  const thinBorders = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+  // -- Helper: build one photo card (nested table: image + caption) --
+  function photoCard(item, index) {
+    const imgType = item.type.includes('png') ? 'png' : 'jpg';
+    return new D.Table({
+      width: { size: INNER_W, type: D.WidthType.DXA },
+      columnWidths: [INNER_W],
+      borders: { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder,
+                 insideH: thinBorder, insideV: thinBorder },
+      rows: [
+        // Image row
+        new D.TableRow({
+          children: [new D.TableCell({
+            width: { size: INNER_W, type: D.WidthType.DXA },
+            borders: thinBorders,
+            shading: { fill: 'FFFFFF', type: D.ShadingType.CLEAR },
+            margins: { top: 60, left: 60, bottom: 60, right: 60 },
+            children: [new D.Paragraph({
+              spacing: { before: 0, after: 0 },
+              alignment: D.AlignmentType.CENTER,
+              children: [new D.ImageRun({
+                type: imgType,
+                data: item.bytes,
+                transformation: { width: 220, height: 220 },
+                altText: { title: item.caption || item.ref, description: item.caption || item.ref, name: 'Photo ' + (index + 1) }
+              })]
+            })]
+          })]
+        }),
+        // Caption row
+        new D.TableRow({
+          children: [new D.TableCell({
+            width: { size: INNER_W, type: D.WidthType.DXA },
+            borders: {
+              top: { style: D.BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+              left: thinBorder, bottom: thinBorder, right: thinBorder
+            },
+            shading: { fill: CAPTION_BG, type: D.ShadingType.CLEAR },
+            margins: { top: 60, left: 100, bottom: 60, right: 100 },
+            children: [new D.Paragraph({
+              spacing: { before: 0, after: 0 },
+              alignment: D.AlignmentType.CENTER,
+              children: [
+                new D.TextRun({
+                  text: (index + 1) + '. ',
+                  font: FONT, size: 18, bold: true, color: NAVY
+                }),
+                new D.TextRun({
+                  text: item.caption || item.ref,
+                  font: FONT, size: 18, color: DARK_TEXT
+                })
+              ]
+            })]
+          })]
+        })
+      ]
+    });
+  }
+
+  // -- Build rows of photo pairs --
+  const gridRows = [];
+  for (let i = 0; i < photoItems.length; i += 2) {
+    const left  = photoItems[i];
+    const right = photoItems[i + 1]; // may be undefined if odd count
+
+    const leftCell = new D.TableCell({
+      width: { size: COL_W, type: D.WidthType.DXA },
+      borders: noBorders,
+      margins: { top: 60, left: 80, bottom: 120, right: 80 },
+      children: [
+        new D.Paragraph({
+          spacing: { before: 0, after: 60 },
+          children: [new D.TextRun({ text: 'Photo ' + (i + 1), font: FONT, bold: true, color: 'FFFFFF', size: 16 })]
+        }),
+        photoCard(left, i),
+        new D.Paragraph({ spacing: { before: 0, after: 0 } })
+      ]
+    });
+
+    const gapCell = new D.TableCell({
+      width: { size: GAP_W, type: D.WidthType.DXA },
+      borders: noBorders,
+      children: [new D.Paragraph({ spacing: { before: 0, after: 0 } })]
+    });
+
+    let rightCell;
+    if (right) {
+      rightCell = new D.TableCell({
+        width: { size: COL_W, type: D.WidthType.DXA },
+        borders: noBorders,
+        margins: { top: 60, left: 80, bottom: 120, right: 80 },
+        children: [
+          new D.Paragraph({
+            spacing: { before: 0, after: 60 },
+            children: [new D.TextRun({ text: 'Photo ' + (i + 2), font: FONT, bold: true, color: 'FFFFFF', size: 16 })]
+          }),
+          photoCard(right, i + 1),
+          new D.Paragraph({ spacing: { before: 0, after: 0 } })
+        ]
+      });
+    } else {
+      // Empty right cell for odd count
+      rightCell = new D.TableCell({
+        width: { size: COL_W, type: D.WidthType.DXA },
+        borders: noBorders,
+        children: [new D.Paragraph({ spacing: { before: 0, after: 0 } })]
+      });
+    }
+
+    gridRows.push(new D.TableRow({ children: [leftCell, gapCell, rightCell] }));
+  }
+
+  // -- Title banner --
+  const titleBanner = new D.Table({
+    width: { size: TBL_W, type: D.WidthType.DXA },
+    columnWidths: [TBL_W],
+    borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder,
+               insideH: noBorder, insideV: noBorder },
+    rows: [new D.TableRow({
+      children: [new D.TableCell({
+        width: { size: TBL_W, type: D.WidthType.DXA },
+        borders: noBorders,
+        shading: { fill: NAVY, type: D.ShadingType.CLEAR },
+        margins: { top: 160, left: 200, bottom: 160, right: 200 },
+        children: [
+          new D.Paragraph({
+            spacing: { before: 0, after: 0 },
+            alignment: D.AlignmentType.CENTER,
+            children: [new D.TextRun({
+              text: 'APPENDIX C.2',
+              font: FONT, bold: true, color: 'FFFFFF', size: 36
+            })]
+          }),
+          new D.Paragraph({
+            spacing: { before: 60, after: 0 },
+            alignment: D.AlignmentType.CENTER,
+            children: [new D.TextRun({
+              text: 'Site Photographs',
+              font: FONT, color: 'F2F6FA', size: 28
+            })]
+          })
+        ]
+      })]
+    })]
+  });
+
+  // -- Blue divider line --
+  const divider = new D.Paragraph({
+    spacing: { before: 0, after: 200 },
+    border: { bottom: { style: D.BorderStyle.SINGLE, size: 8, color: BLUE_LINE, space: 1 } }
+  });
+
+  // -- Photo grid table --
+  const photoGrid = new D.Table({
+    width: { size: TBL_W, type: D.WidthType.DXA },
+    columnWidths: [COL_W, GAP_W, COL_W],
+    borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder,
+               insideH: noBorder, insideV: noBorder },
+    rows: gridRows
+  });
+
+  // -- Assemble document --
+  const siteName = document.getElementById('siteName').value.trim() || 'DLA Site Visit';
+  const doc = new D.Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { width: 12240, height: 15840 },
+          margin: { top: 1080, right: 1080, bottom: 1080, left: 1080, header: 708, footer: 708 }
+        }
+      },
+      headers: {
+        default: new D.Header({
+          children: [new D.Paragraph({
+            spacing: { after: 0 },
+            alignment: D.AlignmentType.RIGHT,
+            border: { bottom: { style: D.BorderStyle.SINGLE, size: 4, color: BLUE_LINE, space: 4 } },
+            children: [new D.TextRun({
+              text: 'DLA Site Visit \u2013 Photo Documentation',
+              font: FONT, italics: true, color: GRAY_TEXT, size: 16
+            })]
+          })]
+        })
+      },
+      footers: {
+        default: new D.Footer({
+          children: [new D.Paragraph({
+            alignment: D.AlignmentType.CENTER,
+            border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: BLUE_LINE, space: 4 } },
+            children: [
+              new D.TextRun({
+                text: 'Appendix C.2 \u2013 Site Photographs  |  Page ',
+                font: FONT, color: GRAY_TEXT, size: 16
+              }),
+              new D.TextRun({
+                children: [D.PageNumber.CURRENT],
+                font: FONT, bold: true, color: NAVY, size: 16
+              })
+            ]
+          })]
+        })
+      },
+      children: [titleBanner, divider, photoGrid]
+    }]
+  });
+
+  try {
+    const buffer = await D.Packer.toBuffer(doc);
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
+    const safeSite = (siteName).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 40);
+    a.download   = `Appendix_C2_Photo_Log_${safeSite}_${datestamp()}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    const endRef = fmtRef(parsed.prefix, counter - 1, parsed.digits);
+    showToast(`Photo Log exported: ${photoItems.length} photos (${pStr}\u2013${endRef})`);
+  } catch(e) {
+    console.error('Photo Log export error:', e);
+    showToast('Photo Log export error \u2014 try again', true);
   }
 }
 
@@ -1686,6 +2025,9 @@ function loadAll() {
 
 function checkStorage() {
   try {
+    // Only count localStorage — photos live in IndexedDB which has a much
+    // larger quota and is not at risk. This indicator reflects the metadata/
+    // thumbnail cache only, not the actual photo bytes.
     let bytes = 0;
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -1694,12 +2036,19 @@ function checkStorage() {
     }
     const pct = Math.round(bytes / (5 * 1024 * 1024) * 100);
     const ind = document.getElementById('storageIndicator');
-    const lbl = document.getElementById('storageUsed');
-    if (pct >= 50) {
+    const msg = document.getElementById('storageMsg');
+
+    // Only show warning at 85%+ — below that the cache is healthy
+    if (pct >= 85) {
       ind.style.display = 'block';
-      lbl.textContent   = pct;
-      ind.style.color   = pct >= 90 ? '#d94a4a' : pct >= 75 ? '#d9a84a' : 'var(--text-dim)';
-      if (pct >= 90) showToast('\u26A0 Storage almost full — export now!', true);
+      if (pct >= 95) {
+        msg.textContent  = '\u26A0 Entry cache full — export & restart to continue';
+        ind.style.color  = '#d94a4a';
+        showToast('\u26A0 Export now — entry cache is full. Your photos are safe.', true);
+      } else {
+        msg.textContent  = '\uD83D\uDCBE Export soon to free up entry cache';
+        ind.style.color  = '#d9a84a';
+      }
     } else {
       ind.style.display = 'none';
     }
