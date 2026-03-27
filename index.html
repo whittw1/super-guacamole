@@ -587,7 +587,7 @@ if ('serviceWorker' in navigator) {
 
   <!-- ── ENTRY FORM ── -->
   <div class="entry-section">
-    <h2>&#128269; New Entry</h2>
+    <h2 id="entryFormTitle">&#128269; New Entry</h2>
 
     <div class="form-group">
       <label>Location</label>
@@ -665,8 +665,9 @@ if ('serviceWorker' in navigator) {
     <div class="entry-count"><strong id="entryCountNum">0</strong> entries saved</div>
     <div id="storageIndicator"><span id="storageMsg"></span></div>
   </div>
-  <div style="display:flex;gap:8px;">
-    <button class="btn btn-warning btn-sm" onclick="saveEntryAndNew()">Save &amp; New &#9654;</button>
+  <div style="display:flex;gap:8px;" id="bottomActions">
+    <button class="btn btn-warning btn-sm" id="saveBtn" onclick="saveEntryAndNew()">Save &amp; New &#9654;</button>
+    <button class="btn btn-outline btn-sm" id="cancelEditBtn" onclick="cancelEdit()" style="display:none;">Cancel</button>
     <button class="btn btn-success btn-sm" onclick="showExportDialog()">&#128230; Export</button>
   </div>
 </div>
@@ -767,6 +768,7 @@ let savedPanelOpen = false;
 let extraPhotoSlots = [];  // slot IDs added dynamically beyond the base two
 let siteList       = [];  // imported site names for the combo-box datalist
 let currentGPS     = null; // { latitude, longitude, accuracy } for current entry
+let editingIndex   = null; // index into savedEntries when editing; null = new entry mode
 
 // ============================================================================
 // INIT
@@ -929,6 +931,7 @@ function getAllCurrentSlots() {
 // SAVE & NEW
 // ============================================================================
 function saveEntryAndNew() {
+  if (editingIndex !== null) { saveEdit(); return; }
   const location = document.getElementById('entryLocation').value.trim();
   const details  = document.getElementById('entryDetails').value.trim();
 
@@ -1038,6 +1041,7 @@ function renderSavedPanel() {
           </div>
         </div>
         <div class="saved-item-actions">
+          <button class="btn btn-accent btn-sm" onclick="editEntry(${i})" style="padding:5px 10px;font-size:12px;">&#9998;</button>
           <button class="btn btn-danger btn-sm" onclick="deleteEntry(${i})" style="padding:5px 10px;font-size:12px;">&#10005;</button>
         </div>
       </div>`;
@@ -1063,6 +1067,166 @@ function deleteEntry(index) {
     renderSavedPanel();
     updateHeaderBadge();
     showToast('Entry deleted');
+  }
+}
+
+function editEntry(index) {
+  const entry = savedEntries[index];
+  if (!entry) return;
+
+  // If already editing or form has unsaved work, confirm first
+  if (editingIndex !== null) {
+    if (!confirm('You are already editing an entry. Discard changes?')) return;
+  } else {
+    const loc = document.getElementById('entryLocation').value.trim();
+    const det = document.getElementById('entryDetails').value.trim();
+    if ((loc || det || Object.keys(currentPhotos).length > 0) &&
+        !confirm('Load saved entry for editing? Current unsaved data will be lost.')) return;
+  }
+
+  // Clear extra slots first
+  extraPhotoSlots = [];
+  const ec = document.getElementById('extraSlotsContainer');
+  if (ec) ec.innerHTML = '';
+
+  // Load entry data into form
+  document.getElementById('siteName').value      = entry.siteName || '';
+  document.getElementById('entryLocation').value = entry.location || '';
+  document.getElementById('entryDetails').value  = entry.details  || '';
+
+  // Restore GPS
+  if (entry.latitude != null && entry.longitude != null) {
+    currentGPS = { latitude: entry.latitude, longitude: entry.longitude, accuracy: entry.gpsAccuracy || 0 };
+  } else {
+    currentGPS = null;
+  }
+  updateGPSDisplay();
+
+  // Restore entry ID so IDB photo keys still match
+  currentEntryId = entry.id || genId();
+
+  // Restore photos into base slots
+  currentPhotos = {};
+  const PH = `<span class="placeholder">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="5" width="18" height="14" rx="2"/>
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M9 2h6l1 3H8l1-3z"/>
+    </svg>
+    Tap to capture
+  </span>`;
+
+  PHOTO_SLOTS.forEach(slot => {
+    const el = document.getElementById('photo_' + slot);
+    if (!el) return;
+    const photo = entry.photos && entry.photos[slot];
+    if (photo && photo.thumbnail) {
+      currentPhotos[slot] = { ...photo };
+      el.classList.add('has-photo');
+      el.innerHTML = `<img src="${photo.thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
+    } else {
+      el.classList.remove('has-photo');
+      el.innerHTML = PH;
+    }
+  });
+
+  // Restore extra photo slots
+  if (entry.photos) {
+    const extraKeys = Object.keys(entry.photos)
+      .filter(k => k.startsWith('p_extra_'))
+      .sort((a, b) => parseInt(a.replace('p_extra_','')) - parseInt(b.replace('p_extra_','')));
+
+    extraKeys.forEach((slotId, idx) => {
+      extraPhotoSlots.push(slotId);
+      const num = 3 + idx;
+      const photo = entry.photos[slotId];
+      currentPhotos[slotId] = { ...photo };
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'photo-grid photo-slot-extra';
+      wrapper.id = 'wrapper_' + slotId;
+      wrapper.style.marginTop = '12px';
+      wrapper.innerHTML = `
+        <div class="photo-slot" style="grid-column:1/span 1;">
+          <label>Photo ${num}</label>
+          <div class="photo-capture ${photo && photo.thumbnail ? 'has-photo' : ''}" onclick="takePhoto('${slotId}')" id="photo_${slotId}">
+            ${photo && photo.thumbnail
+              ? `<img src="${photo.thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`
+              : PH}
+          </div>
+          <input type="file" accept="image/*" capture="environment" id="file_${slotId}" onchange="handlePhoto(this,'${slotId}')">
+        </div>
+        <div style="display:flex;align-items:flex-end;padding-bottom:4px;">
+          <button class="btn btn-outline btn-sm" onclick="removePhotoSlot('${slotId}')"
+            style="color:var(--danger);border-color:var(--danger);padding:6px 12px;">\u2715 Remove</button>
+        </div>`;
+      ec.appendChild(wrapper);
+    });
+  }
+
+  // Enter edit mode
+  editingIndex = index;
+  setEditModeUI(true, entry.location || 'entry');
+
+  // Scroll to form
+  document.getElementById('entryFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  autoSaveCurrent();
+}
+
+function saveEdit() {
+  const location = document.getElementById('entryLocation').value.trim();
+  const details  = document.getElementById('entryDetails').value.trim();
+
+  if (!location && !details && Object.keys(currentPhotos).length === 0) {
+    showToast('Add a location, details, or at least one photo first', true);
+    return;
+  }
+
+  savedEntries[editingIndex] = {
+    id:          currentEntryId,
+    siteName:    document.getElementById('siteName').value.trim(),
+    location:    location,
+    details:     details,
+    latitude:    currentGPS ? currentGPS.latitude  : null,
+    longitude:   currentGPS ? currentGPS.longitude : null,
+    gpsAccuracy: currentGPS ? currentGPS.accuracy  : null,
+    timestamp:   savedEntries[editingIndex].timestamp, // preserve original timestamp
+    photos:      Object.assign({}, currentPhotos)
+  };
+
+  saveAll();
+  editingIndex = null;
+  setEditModeUI(false);
+  clearEntryForm(false);
+  renderSavedPanel();
+  updateHeaderBadge();
+  showToast('\u2714 Entry updated');
+}
+
+function cancelEdit() {
+  editingIndex = null;
+  setEditModeUI(false);
+  clearEntryForm(false);
+  showToast('Edit cancelled');
+}
+
+function setEditModeUI(editing, locationName) {
+  const title     = document.getElementById('entryFormTitle');
+  const saveBtn   = document.getElementById('saveBtn');
+  const cancelBtn = document.getElementById('cancelEditBtn');
+
+  if (editing) {
+    title.innerHTML = `&#9998; Editing: ${(locationName || 'entry').replace(/</g,'&lt;').slice(0,40)}`;
+    title.style.color = 'var(--warning)';
+    saveBtn.textContent = 'Save Edit \u2714';
+    saveBtn.className = 'btn btn-accent btn-sm';
+    cancelBtn.style.display = 'inline-block';
+  } else {
+    title.innerHTML = '&#128269; New Entry';
+    title.style.color = '';
+    saveBtn.innerHTML = 'Save &amp; New &#9654;';
+    saveBtn.className = 'btn btn-warning btn-sm';
+    cancelBtn.style.display = 'none';
   }
 }
 
@@ -1589,12 +1753,13 @@ async function generatePhotoLog() {
           let caption = '';
           if (entry.location && entry.details) caption = entry.location + ' \u2013 ' + entry.details;
           else caption = entry.location || entry.details || '';
-          // Append GPS coordinates to caption if available
+          // GPS coordinates stored separately so they render on their own line
+          let gpsLine = '';
           if (entry.latitude != null && entry.longitude != null) {
             const lonDir = entry.longitude < 0 ? 'W' : 'E';
-            caption += (caption ? ' | ' : '') + `GPS: ${entry.latitude.toFixed(6)}\u00B0N, ${Math.abs(entry.longitude).toFixed(6)}\u00B0${lonDir}`;
+            gpsLine = `GPS: ${entry.latitude.toFixed(6)}\u00B0N, ${Math.abs(entry.longitude).toFixed(6)}\u00B0${lonDir}`;
           }
-          photoItems.push({ bytes: pd.bytes, type: pd.type, caption, ref });
+          photoItems.push({ bytes: pd.bytes, type: pd.type, caption, gpsLine, ref });
         }
       }
     }
@@ -1659,20 +1824,30 @@ async function generatePhotoLog() {
             },
             shading: { fill: CAPTION_BG, type: D.ShadingType.CLEAR },
             margins: { top: 60, left: 100, bottom: 60, right: 100 },
-            children: [new D.Paragraph({
-              spacing: { before: 0, after: 0 },
-              alignment: D.AlignmentType.CENTER,
-              children: [
-                new D.TextRun({
-                  text: (index + 1) + '. ',
-                  font: FONT, size: 18, bold: true, color: NAVY
-                }),
-                new D.TextRun({
-                  text: item.caption || item.ref,
-                  font: FONT, size: 18, color: DARK_TEXT
-                })
-              ]
-            })]
+            children: [
+              new D.Paragraph({
+                spacing: { before: 0, after: 0 },
+                alignment: D.AlignmentType.CENTER,
+                children: [
+                  new D.TextRun({
+                    text: (index + 1) + '. ',
+                    font: FONT, size: 18, bold: true, color: NAVY
+                  }),
+                  new D.TextRun({
+                    text: item.caption || item.ref,
+                    font: FONT, size: 18, color: DARK_TEXT
+                  })
+                ]
+              }),
+              ...(item.gpsLine ? [new D.Paragraph({
+                spacing: { before: 20, after: 0 },
+                alignment: D.AlignmentType.CENTER,
+                children: [new D.TextRun({
+                  text: item.gpsLine,
+                  font: FONT, size: 16, italics: true, color: GRAY_TEXT
+                })]
+              })] : [])
+            ]
           })]
         })
       ]
