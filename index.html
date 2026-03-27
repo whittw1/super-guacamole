@@ -1076,7 +1076,9 @@ function updateHeaderBadge() {
 // PHOTO HANDLING
 // ============================================================================
 function takePhoto(slotId) {
-  document.getElementById('file_' + slotId).click();
+  const input = document.getElementById('file_' + slotId);
+  input.value = '';          // reset so 'change' always fires, even on the same slot
+  input.click();
 }
 
 let photoDB     = null;
