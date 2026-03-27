@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-title" content="DLA Photo Collector">
+<meta name="apple-mobile-web-app-title" content="Audit Photo Collector">
 <link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
-<title>DLA Photo Collector</title>
+<title>Audit Photo Collector</title>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -524,7 +524,7 @@ if ('serviceWorker' in navigator) {
   <div style="display:flex;align-items:center;gap:10px;">
     <img src="data:image/jpeg;base64,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" alt="HGS Engineering" style="height:34px;width:auto;border-radius:3px;">
     <div>
-      <h1 style="font-size:16px;font-weight:700;letter-spacing:0.3px;">DLA Photo Collector</h1>
+      <h1 style="font-size:16px;font-weight:700;letter-spacing:0.3px;">Audit Photo Collector</h1>
       <div style="font-size:10px;color:var(--text-dim);letter-spacing:0.5px;text-transform:uppercase;">HGS Engineering, Inc.</div>
     </div>
     <span class="header-badge" id="headerBadge" style="display:none;">0 saved</span>
@@ -591,11 +591,18 @@ if ('serviceWorker' in navigator) {
 
     <div class="form-group">
       <label>Location</label>
+      <input type="text" id="entryLocation" placeholder="e.g. Building 3 / Secondary Containment Area"
+        oninput="autoSaveCurrent()">
+    </div>
+
+    <div class="form-group">
+      <label>GPS Coordinates</label>
       <div style="display:flex;gap:8px;align-items:stretch;">
-        <input type="text" id="entryLocation" placeholder="e.g. Building 3 / Secondary Containment Area"
-          oninput="autoSaveCurrent()" style="flex:1;">
+        <input type="text" id="gpsDisplay" readonly
+          placeholder="Auto-captured with photos or tap GPS button"
+          style="flex:1;color:var(--text-dim);font-size:13px;cursor:default;">
         <button class="btn btn-outline btn-sm" id="gpsBtn" onclick="getGPS()"
-          title="Append GPS coordinates"
+          title="Capture GPS coordinates"
           style="flex-shrink:0;white-space:nowrap;padding:0 14px;display:flex;align-items:center;gap:5px;">
           <svg id="gpsBtnIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <circle cx="12" cy="12" r="3"/>
@@ -604,6 +611,9 @@ if ('serviceWorker' in navigator) {
           </svg>
           <span id="gpsBtnLabel">GPS</span>
         </button>
+        <button class="btn btn-outline btn-sm" id="gpsClearBtn" onclick="clearGPS()"
+          title="Clear GPS coordinates"
+          style="flex-shrink:0;padding:0 10px;display:none;color:var(--danger);border-color:var(--danger);">✕</button>
       </div>
       <div id="gpsStatus" style="font-size:11px;color:var(--text-dim);margin-top:4px;display:none;"></div>
     </div>
@@ -756,6 +766,7 @@ let currentEntryId = null; // IDB key namespace for current entry
 let savedPanelOpen = false;
 let extraPhotoSlots = [];  // slot IDs added dynamically beyond the base two
 let siteList       = [];  // imported site names for the combo-box datalist
+let currentGPS     = null; // { latitude, longitude, accuracy } for current entry
 
 // ============================================================================
 // INIT
@@ -931,6 +942,9 @@ function saveEntryAndNew() {
     siteName:  document.getElementById('siteName').value.trim(),
     location:  location,
     details:   details,
+    latitude:  currentGPS ? currentGPS.latitude  : null,
+    longitude: currentGPS ? currentGPS.longitude : null,
+    gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
     timestamp: new Date().toISOString(),
     photos:    Object.assign({}, currentPhotos)
   };
@@ -958,9 +972,11 @@ function clearEntryForm(confirmFirst = true) {
 
   currentPhotos  = {};
   currentEntryId = genId();
+  currentGPS     = null;
 
   document.getElementById('entryLocation').value = '';
   document.getElementById('entryDetails').value  = '';
+  updateGPSDisplay();
 
   const PH = `<span class="placeholder">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1010,6 +1026,7 @@ function renderSavedPanel() {
           : `<div class="saved-item-thumb-empty">&#128247;</div>`}
         <div class="saved-item-info">
           <div class="saved-item-name">${e.location || '(No location)'}</div>
+          ${e.latitude != null ? `<div style="font-size:10px;color:var(--text-dim);">${e.latitude.toFixed(6)}°N, ${Math.abs(e.longitude).toFixed(6)}°${e.longitude < 0 ? 'W' : 'E'}</div>` : ''}
           <div class="saved-item-detail">
             ${photoCount} photo${photoCount !== 1 ? 's' : ''}
             ${e.details ? ' \u2022 ' + e.details.slice(0,60) + (e.details.length > 60 ? '\u2026' : '') : ''}
@@ -1193,6 +1210,12 @@ function handlePhoto(input, slotId) {
       container.classList.add('has-photo');
       container.innerHTML = `<img src="${thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
       showToast(`${PHOTO_SLOT_NAMES[slotId]} photo saved (~${sizeKB} KB)`);
+
+      // Auto-capture GPS with each photo (silent — no error toast if it fails)
+      if (!currentGPS) {
+        captureGPS(true).catch(() => {});
+      }
+
       autoSaveCurrent();
     };
     img.src = e.target.result;
@@ -1328,6 +1351,9 @@ async function runExport() {
       siteName:  document.getElementById('siteName').value.trim(),
       location:  loc,
       details:   det,
+      latitude:  currentGPS ? currentGPS.latitude  : null,
+      longitude: currentGPS ? currentGPS.longitude : null,
+      gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
       timestamp: new Date().toISOString(),
       photos:    Object.assign({}, currentPhotos)
     });
@@ -1336,7 +1362,7 @@ async function runExport() {
   if (allEntries.length === 0) { showToast('Nothing to export', true); return; }
   if (typeof XLSX === 'undefined') { showToast('SheetJS not loaded — go online once first', true); return; }
 
-  showToast('Building export\u2026');
+  showToast('Building export…');
 
   let counter = parsed.num;
   const nextRef = () => fmtRef(parsed.prefix, counter++, parsed.digits);
@@ -1392,8 +1418,10 @@ async function runExport() {
   const maxPhotos = Math.max(2, ...entryMaps.map(m => Object.keys(m).length));
 
   // PASS 2 — CSV (dynamic photo columns)
+  const fmtCoord = v => v != null ? Number(v).toFixed(6) : '';
+  const fmtAcc   = v => v != null ? String(v) : '';
   const photoHeaders = Array.from({length: maxPhotos}, (_, i) => `Photo ${i+1}`);
-  let csv = ['Entry #','Site','Location','Details','Timestamp',...photoHeaders].join(',') + '\n';
+  let csv = ['Entry #','Site','Location','Latitude','Longitude','GPS Accuracy (m)','Details','Timestamp',...photoHeaders].join(',') + '\n';
   allEntries.forEach((e, i) => {
     const m = entryMaps[i];
     const sortedSlots = Object.keys(m).sort((a,b) => {
@@ -1402,7 +1430,9 @@ async function runExport() {
     });
     const photoVals = Array.from({length: maxPhotos}, (_, pi) => quote(m[sortedSlots[pi]] || ''));
     csv += [
-      i + 1, quote(e.siteName), quote(e.location), quote(e.details),
+      i + 1, quote(e.siteName), quote(e.location),
+      quote(fmtCoord(e.latitude)), quote(fmtCoord(e.longitude)), quote(fmtAcc(e.gpsAccuracy)),
+      quote(e.details),
       quote(e.timestamp ? new Date(e.timestamp).toLocaleString() : ''),
       ...photoVals
     ].join(',') + '\n';
@@ -1411,7 +1441,7 @@ async function runExport() {
   // PASS 3 — XLSX (dynamic photo columns)
   const xlsxPhotoCols = Array.from({length: maxPhotos}, (_, i) => `Photo ${i+1}`);
   const aoa = [
-    ['Entry #', 'Site', 'Location', 'Details', 'Timestamp', ...xlsxPhotoCols],
+    ['Entry #', 'Site', 'Location', 'Latitude', 'Longitude', 'GPS Accuracy (m)', 'Details', 'Timestamp', ...xlsxPhotoCols],
     ...allEntries.map((e, i) => {
       const m = entryMaps[i];
       const sortedSlots = Object.keys(m).sort((a,b) => {
@@ -1420,7 +1450,9 @@ async function runExport() {
       });
       const photoVals = Array.from({length: maxPhotos}, (_, pi) => m[sortedSlots[pi]] || '');
       return [
-        i + 1, e.siteName || '', e.location || '', e.details || '',
+        i + 1, e.siteName || '', e.location || '',
+        e.latitude != null ? e.latitude : '', e.longitude != null ? e.longitude : '', e.gpsAccuracy != null ? e.gpsAccuracy : '',
+        e.details || '',
         e.timestamp ? new Date(e.timestamp).toLocaleString() : '',
         ...photoVals
       ];
@@ -1428,7 +1460,7 @@ async function runExport() {
   ];
   const photoCols = Array.from({length: maxPhotos}, () => ({wch:14}));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:8},{wch:28},{wch:30},{wch:50},{wch:20},...photoCols];
+  ws['!cols'] = [{wch:8},{wch:28},{wch:30},{wch:14},{wch:14},{wch:16},{wch:50},{wch:20},...photoCols];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Audit Entries');
   zip.file('Audit_Report_' + datestamp() + '.xlsx', XLSX.write(wb, {bookType:'xlsx',type:'array'}));
@@ -1488,6 +1520,9 @@ async function generatePhotoLog() {
       siteName:  document.getElementById('siteName').value.trim(),
       location:  loc,
       details:   det,
+      latitude:  currentGPS ? currentGPS.latitude  : null,
+      longitude: currentGPS ? currentGPS.longitude : null,
+      gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
       timestamp: new Date().toISOString(),
       photos:    Object.assign({}, currentPhotos)
     });
@@ -1531,6 +1566,11 @@ async function generatePhotoLog() {
           let caption = '';
           if (entry.location && entry.details) caption = entry.location + ' \u2013 ' + entry.details;
           else caption = entry.location || entry.details || '';
+          // Append GPS coordinates to caption if available
+          if (entry.latitude != null && entry.longitude != null) {
+            const lonDir = entry.longitude < 0 ? 'W' : 'E';
+            caption += (caption ? ' | ' : '') + `GPS: ${entry.latitude.toFixed(6)}\u00B0N, ${Math.abs(entry.longitude).toFixed(6)}\u00B0${lonDir}`;
+          }
           photoItems.push({ bytes: pd.bytes, type: pd.type, caption, ref });
         }
       }
@@ -1795,6 +1835,9 @@ function saveBackup() {
       id: currentEntryId,
       siteName: document.getElementById('siteName').value.trim(),
       location: loc, details: det,
+      latitude:  currentGPS ? currentGPS.latitude  : null,
+      longitude: currentGPS ? currentGPS.longitude : null,
+      gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
       timestamp: new Date().toISOString(),
       photos: {}
     });
@@ -1866,6 +1909,9 @@ function normaliseEntry(e) {
     siteName:  e.siteName  || '',
     location:  e.location  || '',
     details:   e.details   || '',
+    latitude:  e.latitude  != null ? e.latitude  : null,
+    longitude: e.longitude != null ? e.longitude : null,
+    gpsAccuracy: e.gpsAccuracy != null ? e.gpsAccuracy : null,
     timestamp: e.timestamp || '',
     photos:    {}
   };
@@ -1874,66 +1920,89 @@ function normaliseEntry(e) {
 // ============================================================================
 // GEOLOCATION
 // ============================================================================
-function getGPS() {
-  if (!navigator.geolocation) {
-    showToast('Geolocation not available on this device', true);
-    return;
-  }
+function captureGPS(silent) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      if (!silent) showToast('Geolocation not available on this device', true);
+      reject(new Error('no geolocation'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const acc = Math.round(pos.coords.accuracy);
+        currentGPS = { latitude: lat, longitude: lon, accuracy: acc };
+        updateGPSDisplay();
+        autoSaveCurrent();
+        resolve(currentGPS);
+      },
+      err => {
+        if (!silent) {
+          const msgs = {
+            1: 'Location permission denied — check iPad Settings > Privacy > Location',
+            2: 'Location unavailable — try again outdoors or near a window',
+            3: 'Location request timed out — try again'
+          };
+          const msg = msgs[err.code] || 'Location error';
+          const status = document.getElementById('gpsStatus');
+          status.textContent = msg;
+          status.style.color = 'var(--danger)';
+          status.style.display = 'block';
+          showToast(msg, true);
+        }
+        reject(err);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+}
 
+function updateGPSDisplay() {
+  const display = document.getElementById('gpsDisplay');
+  const status  = document.getElementById('gpsStatus');
+  const clearBtn = document.getElementById('gpsClearBtn');
+  if (currentGPS) {
+    const lat = currentGPS.latitude.toFixed(6);
+    const lon = currentGPS.longitude.toFixed(6);
+    const lonDir = currentGPS.longitude < 0 ? 'W' : 'E';
+    display.value = `${lat}°N, ${Math.abs(currentGPS.longitude).toFixed(6)}°${lonDir}`;
+    display.style.color = 'var(--text)';
+    status.textContent = `±${currentGPS.accuracy}m accuracy`;
+    status.style.color = currentGPS.accuracy <= 20 ? 'var(--success)' : currentGPS.accuracy <= 100 ? 'var(--warning)' : 'var(--danger)';
+    status.style.display = 'block';
+    clearBtn.style.display = 'block';
+  } else {
+    display.value = '';
+    display.style.color = 'var(--text-dim)';
+    status.style.display = 'none';
+    clearBtn.style.display = 'none';
+  }
+}
+
+function getGPS() {
   const btn   = document.getElementById('gpsBtn');
   const label = document.getElementById('gpsBtnLabel');
   const icon  = document.getElementById('gpsBtnIcon');
-  const status = document.getElementById('gpsStatus');
 
-  // Show spinner state
   btn.disabled = true;
   label.textContent = 'Locating…';
   icon.innerHTML = '<circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle>';
-  status.style.display = 'none';
 
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      const lat  = pos.coords.latitude.toFixed(6);
-      const lon  = pos.coords.longitude.toFixed(6);
-      const acc  = Math.round(pos.coords.accuracy);
-      const coord = `(${lat}°N, ${Math.abs(lon)}°${lon < 0 ? 'W' : 'E'})`;
-
-      // Append to existing location text if present, otherwise just set coords
-      const field = document.getElementById('entryLocation');
-      const existing = field.value.trim();
-      field.value = existing ? `${existing} ${coord}` : coord;
-
-      // Show accuracy note
-      status.textContent = `±${acc}m accuracy`;
-      status.style.color = acc <= 20 ? 'var(--success)' : acc <= 100 ? 'var(--warning)' : 'var(--danger)';
-      status.style.display = 'block';
-
-      // Reset button
+  captureGPS(false)
+    .then(gps => showToast(`📍 GPS captured (±${gps.accuracy}m)`))
+    .catch(() => {})
+    .finally(() => {
       btn.disabled = false;
       label.textContent = 'GPS';
       icon.innerHTML = '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><path d="M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7z"/>';
+    });
+}
 
-      autoSaveCurrent();
-      showToast(`📍 GPS captured (±${acc}m)`);
-    },
-    err => {
-      btn.disabled = false;
-      label.textContent = 'GPS';
-      icon.innerHTML = '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><path d="M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7z"/>';
-
-      const msgs = {
-        1: 'Location permission denied — check iPad Settings > Privacy > Location',
-        2: 'Location unavailable — try again outdoors or near a window',
-        3: 'Location request timed out — try again'
-      };
-      const msg = msgs[err.code] || 'Location error';
-      status.textContent = msg;
-      status.style.color = 'var(--danger)';
-      status.style.display = 'block';
-      showToast(msg, true);
-    },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-  );
+function clearGPS() {
+  currentGPS = null;
+  updateGPSDisplay();
+  autoSaveCurrent();
 }
 
 // ============================================================================
@@ -1945,7 +2014,7 @@ function autoSaveCurrent() {
       siteName:      document.getElementById('siteName').value,
       entryLocation: document.getElementById('entryLocation').value,
       entryDetails:  document.getElementById('entryDetails').value,
-      currentPhotos, currentEntryId, extraPhotoSlots
+      currentPhotos, currentEntryId, extraPhotoSlots, currentGPS
     }));
     checkStorage();
   } catch(e) { showToast('Storage issue — export soon', true); }
@@ -1973,6 +2042,8 @@ function loadAll() {
 
     currentPhotos  = state.currentPhotos  || {};
     currentEntryId = state.currentEntryId || genId();
+    currentGPS     = state.currentGPS    || null;
+    updateGPSDisplay();
 
     // Restore any extra photo slots
     extraPhotoSlots = [];
