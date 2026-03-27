@@ -998,6 +998,10 @@ function clearEntryForm(confirmFirst = true) {
   extraPhotoSlots = [];
   const ec = document.getElementById('extraSlotsContainer');
   if (ec) ec.innerHTML = '';
+
+  // Persist the clean state so an iOS page reload (common when returning
+  // from camera) doesn't resurrect the entry we just saved.
+  autoSaveCurrent();
 }
 
 // ============================================================================
@@ -1076,8 +1080,25 @@ function updateHeaderBadge() {
 // PHOTO HANDLING
 // ============================================================================
 function takePhoto(slotId) {
-  const input = document.getElementById('file_' + slotId);
-  input.value = '';          // reset so 'change' always fires, even on the same slot
+  // Destroy and recreate the file input every time — most reliable fix for
+  // iOS Safari silently ignoring .click() on reused file inputs after
+  // Save & New or retake.
+  const old = document.getElementById('file_' + slotId);
+  const parent = old ? old.parentNode : null;
+  if (old) old.remove();
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.setAttribute('capture', 'environment');
+  input.id = 'file_' + slotId;
+  input.style.display = 'none';
+  input.onchange = function () { handlePhoto(this, slotId); };
+
+  // Insert right after the photo-capture div
+  const container = document.getElementById('photo_' + slotId);
+  (parent || container.parentNode).insertBefore(input, container.nextSibling);
+
   input.click();
 }
 
