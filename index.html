@@ -1827,8 +1827,7 @@ async function generatePhotoLog() {
   });
 
   try {
-    const buffer = await D.Packer.toBuffer(doc);
-    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const blob   = await D.Packer.toBlob(doc);
     const url    = URL.createObjectURL(blob);
     const a      = document.createElement('a');
     a.href       = url;
