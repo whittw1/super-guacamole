@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+www/
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+*.xcuserstate
+.DS_Store
+.vscode/
+.idea/
