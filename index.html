@@ -33,7 +33,7 @@ if ('serviceWorker' in navigator) {
     --text-dim: #6b7588;
     --text-label: #6b7588;
     --input-bg: #ffffff;
-    --photo-bg: #e5e7eb;
+    --photo-bg: #eef2f8;
     --radius: 12px;
   }
 
@@ -49,26 +49,57 @@ if ('serviceWorker' in navigator) {
 
   /* ── Header ── */
   .header {
-    background: var(--card);
-    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    color: #ffffff;
     padding: 12px 20px;
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
     display: flex;
     align-items: center;
     justify-content: space-between;
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
-  .header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.5px; }
+  .header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.5px; color: #ffffff; }
   .header-actions { display: flex; gap: 8px; }
   .header-badge {
-    background: var(--accent);
-    color: white;
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
     font-size: 11px;
     font-weight: 700;
     padding: 2px 8px;
     border-radius: 10px;
     margin-left: 8px;
+  }
+  .header .btn-outline {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    color: #ffffff;
+  }
+  .header .btn-outline:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.7);
+    color: #ffffff;
+  }
+  .header .btn-accent {
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--accent);
+  }
+  .header .btn-accent:hover {
+    background: #ffffff;
+    color: var(--accent-hover);
+  }
+  .header .overflow-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    color: #ffffff;
+  }
+  .header .overflow-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.7);
+    color: #ffffff;
   }
 
   /* ── Buttons ── */
@@ -505,7 +536,7 @@ if ('serviceWorker' in navigator) {
     .header-btn-secondary { display: none !important; }
     .overflow-menu-wrapper { display: block; }
     /* Tighten padding on small screens */
-    .header { padding: 10px 14px; }
+    .header { padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
     .container { padding: 14px; }
     .entry-section, .site-section { padding: 14px; }
     .session-section { padding: 12px 14px; }
