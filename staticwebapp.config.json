@@ -1,6 +1,11 @@
 {
   "routes": [
     {
+      "route": "/notes.html",
+      "redirect": "https://ambitious-sky-02b1d4e10.7.azurestaticapps.net/",
+      "statusCode": 301
+    },
+    {
       "route": "/sw.js",
       "headers": {
         "Cache-Control": "no-cache, no-store, must-revalidate",
