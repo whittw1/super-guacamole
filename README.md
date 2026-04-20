@@ -27,7 +27,6 @@ A mobile-first Progressive Web App (PWA) for collecting geotagged photos during 
 index.html          Single-page app (HTML + CSS + JS, ~2200 lines)
 sw.js               Service worker — cache versioning, network-first HTML strategy
 manifest.json       PWA manifest (app name, theme color, display mode)
-dla_sites.txt       Example site list for import
 ```
 
 All application code lives in `index.html` — there is no build step. External libraries are loaded from CDN:

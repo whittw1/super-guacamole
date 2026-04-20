@@ -8,20 +8,7 @@
       }
     },
     {
-      "route": "/sw_notes.js",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Service-Worker-Allowed": "/"
-      }
-    },
-    {
       "route": "/index.html",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate"
-      }
-    },
-    {
-      "route": "/notes.html",
       "headers": {
         "Cache-Control": "no-cache, no-store, must-revalidate"
       }
@@ -32,22 +19,11 @@
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "content-type": "application/manifest+json"
       }
-    },
-    {
-      "route": "/manifest_notes.json",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "content-type": "application/manifest+json"
-      }
-    },
-    {
-      "route": "/dla_sites.txt",
-      "headers": { "Cache-Control": "public, max-age=86400" }
     }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/sw.js", "/sw_notes.js", "/notes.html", "/*.json", "/*.txt", "/*.{png,jpg,ico,svg,webp}"]
+    "exclude": ["/sw.js", "/*.json", "/*.{png,jpg,ico,svg,webp}"]
   },
   "mimeTypes": {
     ".json": "application/json",
