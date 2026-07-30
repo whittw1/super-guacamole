@@ -919,6 +919,7 @@ if ('serviceWorker' in navigator) {
     <div class="dialog-actions">
       <button class="btn btn-outline btn-sm" onclick="closeSiteMapDialog()">Close</button>
       <button class="btn btn-success btn-sm" id="smDownloadBtn" onclick="downloadSiteMap()" disabled>&#11015; Download JPG</button>
+      <button class="btn btn-accent btn-sm" id="smDocxBtn" onclick="downloadSiteMapDoc()" disabled title="Standalone Word document with the satellite view">&#128196; Word Doc</button>
     </div>
   </div>
 </div>
@@ -1998,6 +1999,7 @@ function openSiteMapDialog() {
   st.entries = collectExportEntries(siteF, dateF);
   st.dataUrl = null;
   document.getElementById('smDownloadBtn').disabled = true;
+  document.getElementById('smDocxBtn').disabled = true;
 
   const sites = [...new Set(st.entries.map(e => (e.siteName || '').trim()).filter(Boolean))];
   st.siteLabel = (siteF !== '__all__' && siteF !== '__none__') ? siteF
@@ -2215,6 +2217,7 @@ async function generateSiteMap() {
     prev.style.display = 'block';
     document.getElementById('smEmpty').style.display = 'none';
     document.getElementById('smDownloadBtn').disabled = false;
+    document.getElementById('smDocxBtn').disabled = false;
 
     // Cache for offline re-export and Photo Log embedding
     if (st.siteTag) {
@@ -2262,6 +2265,140 @@ function downloadSiteMap() {
     entries: st.entries.length, photos: 0, zoom: st.zoom, markers: st.markers
   });
   showToast('Site map saved: ' + fname);
+}
+
+// Standalone Word document with the satellite view (optional report attachment)
+async function downloadSiteMapDoc() {
+  const st = smState;
+  if (!st.dataUrl) return;
+  if (typeof docx === 'undefined') { showToast('docx library not loaded - check connection', true); return; }
+  showToast('Building map document...');
+
+  const D = docx;
+  const FONT = 'Arial';
+  const NAVY = '1B3A5C', GRAY_TEXT = '5A6A7A', BLUE_LINE = '2E75B6', DARK_TEXT = '1A1A1A';
+  const TBL_W = 10080;
+  const noBorder  = { style: D.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
+
+  const banner = new D.Table({
+    width: { size: TBL_W, type: D.WidthType.DXA },
+    columnWidths: [TBL_W],
+    borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder,
+               insideH: noBorder, insideV: noBorder },
+    rows: [new D.TableRow({
+      children: [new D.TableCell({
+        width: { size: TBL_W, type: D.WidthType.DXA },
+        borders: noBorders,
+        shading: { fill: NAVY, type: D.ShadingType.CLEAR },
+        margins: { top: 160, left: 200, bottom: 160, right: 200 },
+        children: [
+          new D.Paragraph({
+            spacing: { before: 0, after: 0 },
+            alignment: D.AlignmentType.CENTER,
+            children: [new D.TextRun({ text: 'FACILITY OVERVIEW', font: FONT, bold: true, color: 'FFFFFF', size: 36 })]
+          }),
+          new D.Paragraph({
+            spacing: { before: 60, after: 0 },
+            alignment: D.AlignmentType.CENTER,
+            children: [new D.TextRun({ text: 'Satellite Site View', font: FONT, color: 'F2F6FA', size: 28 })]
+          }),
+          ...(st.siteLabel && st.siteLabel !== 'Facility' ? [new D.Paragraph({
+            spacing: { before: 40, after: 0 },
+            alignment: D.AlignmentType.CENTER,
+            children: [new D.TextRun({ text: st.siteLabel, font: FONT, bold: true, color: 'DCE6F2', size: 22 })]
+          })] : [])
+        ]
+      })]
+    })]
+  });
+
+  const divider = new D.Paragraph({
+    spacing: { before: 0, after: 240 },
+    border: { bottom: { style: D.BorderStyle.SINGLE, size: 8, color: BLUE_LINE, space: 1 } }
+  });
+
+  const lat = parseFloat(document.getElementById('smLat').value);
+  const lon = parseFloat(document.getElementById('smLon').value);
+  const coordLine = (isFinite(lat) && isFinite(lon))
+    ? 'Center: ' + lat.toFixed(6) + ', ' + lon.toFixed(6) + '  |  Zoom ' + st.zoom + '  |  '
+    : '';
+
+  const doc = new D.Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { width: 12240, height: 15840 },
+          margin: { top: 1080, right: 1080, bottom: 1080, left: 1080, header: 708, footer: 708 }
+        }
+      },
+      headers: {
+        default: new D.Header({
+          children: [new D.Paragraph({
+            spacing: { after: 0 },
+            alignment: D.AlignmentType.RIGHT,
+            border: { bottom: { style: D.BorderStyle.SINGLE, size: 4, color: BLUE_LINE, space: 4 } },
+            children: [new D.TextRun({
+              text: (st.siteLabel || 'Site') + ' - Facility Overview',
+              font: FONT, italics: true, color: GRAY_TEXT, size: 16
+            })]
+          })]
+        })
+      },
+      children: [
+        banner, divider,
+        new D.Paragraph({
+          alignment: D.AlignmentType.CENTER,
+          spacing: { before: 120, after: 80 },
+          children: [new D.ImageRun({
+            type: 'jpg',
+            data: dataUrlToUint8Array(st.dataUrl),
+            transformation: { width: 660, height: 495 },
+            altText: { title: 'Facility satellite view', description: 'Facility satellite view', name: 'Site Map' }
+          })]
+        }),
+        ...(st.markers > 0 ? [new D.Paragraph({
+          alignment: D.AlignmentType.CENTER,
+          spacing: { after: 40 },
+          children: [new D.TextRun({
+            text: 'Numbered markers correspond to entry numbers in the audit export.',
+            font: FONT, size: 18, color: DARK_TEXT
+          })]
+        })] : []),
+        new D.Paragraph({
+          alignment: D.AlignmentType.CENTER,
+          spacing: { after: 20 },
+          children: [new D.TextRun({
+            text: coordLine + 'Generated ' + new Date().toLocaleDateString(),
+            font: FONT, size: 16, italics: true, color: GRAY_TEXT
+          })]
+        }),
+        new D.Paragraph({
+          alignment: D.AlignmentType.CENTER,
+          spacing: { after: 0 },
+          children: [new D.TextRun({ text: SITEMAP_ATTRIB, font: FONT, size: 14, italics: true, color: GRAY_TEXT })]
+        })
+      ]
+    }]
+  });
+
+  try {
+    const blob  = await D.Packer.toBlob(doc);
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    const fname = 'Site_Map_' + (st.siteTag ? st.siteTag + '_' : '') + datestamp() + '.docx';
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    logExport({
+      type: 'sitemap', filename: fname, site: st.siteF, date: st.dateF,
+      entries: st.entries.length, photos: 0, zoom: st.zoom, markers: st.markers
+    });
+    showToast('Site map document saved: ' + fname);
+  } catch(e) {
+    console.error('Site map doc error:', e);
+    showToast('Map document export error - try again', true);
+  }
 }
 
 // ============================================================================
