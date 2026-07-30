@@ -581,6 +581,8 @@ if ('serviceWorker' in navigator) {
     text-transform: uppercase;
   }
   .export-log-type.log-docx { background: var(--success); }
+  .export-log-type.log-map { background: #7c3aed; }
+  #smPreview { touch-action: none; cursor: grab; user-select: none; -webkit-user-drag: none; }
   .export-log-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
   @media (max-width: 640px) {
@@ -802,9 +804,10 @@ if ('serviceWorker' in navigator) {
         onkeydown="if(event.key==='Enter')runExport()">
       <div id="refPreview" style="font-size:12px;color:var(--text-dim);margin-top:2px;"></div>
     </div>
-    <div class="dialog-actions">
+    <div class="dialog-actions" style="flex-wrap:wrap;">
       <button class="btn btn-outline btn-sm" onclick="showExportLog()" title="View export history" style="margin-right:auto;padding:7px 10px;">&#128220;</button>
       <button class="btn btn-outline btn-sm" onclick="closeExportDialog()">Cancel</button>
+      <button class="btn btn-outline btn-sm" onclick="openSiteMapDialog()" title="Generate a satellite site map">&#128752; Site Map</button>
       <button class="btn btn-success btn-sm" onclick="runExport()">&#128230; Export ZIP</button>
       <button class="btn btn-accent btn-sm" onclick="generatePhotoLog()" title="Generate Appendix C.2 Photo Log (.docx)">&#128196; Photo Log</button>
     </div>
@@ -871,6 +874,55 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ── SITE MAP DIALOG ── -->
+<div class="dialog-overlay" id="siteMapOverlay" style="display:none;" onclick="if(event.target===this)closeSiteMapDialog()">
+  <div class="dialog" style="max-width:680px;">
+    <h3>&#128752; Satellite Site Map</h3>
+    <div id="smInfo" style="font-size:12px;color:var(--text-dim);margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <input type="text" id="smAddress" placeholder="Search address, e.g. 25600 S Chrisman Rd, Tracy CA"
+        style="flex:1;padding:9px 12px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;"
+        onkeydown="if(event.key==='Enter')smSearchAddress()">
+      <button class="btn btn-outline btn-sm" onclick="smSearchAddress()" style="flex-shrink:0;">&#128269; Find</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+      <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-label);text-transform:uppercase;letter-spacing:0.5px;">Center Latitude</label>
+        <input type="text" id="smLat" inputmode="decimal"
+          style="padding:8px 10px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;">
+      </div>
+      <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-label);text-transform:uppercase;letter-spacing:0.5px;">Center Longitude</label>
+        <input type="text" id="smLon" inputmode="decimal"
+          style="padding:8px 10px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="smZoomBy(-1)" style="padding:8px 12px;">-</button>
+        <span style="font-size:13px;color:var(--text-dim);min-width:52px;text-align:center;">Zoom <strong id="smZoomLabel" style="color:var(--text);">18</strong></span>
+        <button class="btn btn-outline btn-sm" onclick="smZoomBy(1)" style="padding:8px 12px;">+</button>
+      </div>
+      <button class="btn btn-accent btn-sm" id="smUpdateBtn" onclick="generateSiteMap()">Update</button>
+    </div>
+    <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="smMarkers" checked onchange="generateSiteMap()"> Number entry locations
+      </label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="smIncludeLog" checked onchange="smIncludeLogChanged()"> Attach to Photo Log for this site
+      </label>
+    </div>
+    <div style="background:var(--photo-bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:180px;display:flex;align-items:center;justify-content:center;position:relative;">
+      <img id="smPreview" style="width:100%;display:none;" draggable="false">
+      <div id="smEmpty" style="font-size:13px;color:var(--text-dim);padding:24px;text-align:center;">Loading imagery...</div>
+    </div>
+    <div id="smStatus" style="font-size:12px;color:var(--text-dim);margin-top:8px;">Drag the map to pan. Use +/- to zoom.</div>
+    <div class="dialog-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeSiteMapDialog()">Close</button>
+      <button class="btn btn-success btn-sm" id="smDownloadBtn" onclick="downloadSiteMap()" disabled>&#11015; Download JPG</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── PHOTO VIEWER DIALOG ── -->
 <div class="dialog-overlay" id="photoViewerOverlay" style="display:none;" onclick="if(event.target===this)closePhotoViewer()">
   <div class="dialog" style="max-width:560px;">
@@ -899,6 +951,10 @@ const LS_CURRENT = 'audit_current';
 const LS_PHOTOS  = 'audit_photo_settings';
 const LS_SITES   = 'audit_site_list';
 const LS_EXPORTS = 'audit_export_log';
+const LS_SITEMAPS = 'audit_sitemap_meta';
+const SITEMAP_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const SITEMAP_W = 1280, SITEMAP_H = 960;
+const SITEMAP_ATTRIB = 'Imagery: Esri, Maxar, Earthstar Geographics & the GIS User Community';
 const IDB_NAME   = 'audit_photos_v1';
 
 // ============================================================================
@@ -962,6 +1018,8 @@ function init() {
   // Wire up ref number live preview
   const inp = document.getElementById('refStart');
   if (inp) inp.addEventListener('input', updateRefPreview);
+
+  smWirePan();
 }
 
 // ============================================================================
@@ -1886,6 +1944,327 @@ function resetPhotoSettings() {
 }
 
 // ============================================================================
+// SITE MAP (satellite imagery, Esri World Imagery tiles)
+// ============================================================================
+let smState = { siteF:'__all__', dateF:'__all__', entries:[], zoom:18, siteTag:'', siteLabel:'', dataUrl:null, markers:0, generating:false };
+
+function smLonToX(lon, world) { return (lon + 180) / 360 * world; }
+function smLatToY(lat, world) {
+  const s = Math.sin(lat * Math.PI / 180);
+  return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * world;
+}
+function smXToLon(x, world) { return x / world * 360 - 180; }
+function smYToLat(y, world) {
+  return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / world))) * 180 / Math.PI;
+}
+
+function getSiteMapMeta() {
+  try {
+    const m = localStorage.getItem(LS_SITEMAPS);
+    if (m) return JSON.parse(m);
+  } catch(e) {}
+  return {};
+}
+
+function setSiteMapMeta(tag, meta) {
+  const all = getSiteMapMeta();
+  all[tag] = meta;
+  try { localStorage.setItem(LS_SITEMAPS, JSON.stringify(all)); } catch(e) {}
+}
+
+function smStatus(msg, warn) {
+  const el = document.getElementById('smStatus');
+  el.textContent = msg;
+  el.style.color = warn ? 'var(--warning)' : 'var(--text-dim)';
+}
+
+function smFitZoom(minLat, maxLat, minLon, maxLon) {
+  if (minLat === maxLat && minLon === maxLon) return 18;
+  for (let z = 19; z >= 13; z--) {
+    const world = 256 * Math.pow(2, z);
+    const px = Math.abs(smLonToX(maxLon, world) - smLonToX(minLon, world));
+    const py = Math.abs(smLatToY(minLat, world) - smLatToY(maxLat, world));
+    if (px <= SITEMAP_W - 160 && py <= SITEMAP_H - 160) return Math.min(z, 18);
+  }
+  return 14;
+}
+
+function openSiteMapDialog() {
+  const siteF = document.getElementById('exportSiteFilter').value;
+  const dateF = document.getElementById('exportDateFilter').value;
+  closeExportDialog();
+  const st = smState;
+  st.siteF = siteF; st.dateF = dateF;
+  st.entries = collectExportEntries(siteF, dateF);
+  st.dataUrl = null;
+  document.getElementById('smDownloadBtn').disabled = true;
+
+  const sites = [...new Set(st.entries.map(e => (e.siteName || '').trim()).filter(Boolean))];
+  st.siteLabel = (siteF !== '__all__' && siteF !== '__none__') ? siteF
+    : (sites.length === 1 ? sites[0] : (sites.length ? 'Multiple sites' : 'Facility'));
+  st.siteTag = (siteF !== '__all__' && siteF !== '__none__') ? safeSiteFile(siteF)
+    : (sites.length === 1 ? safeSiteFile(sites[0]) : '');
+
+  const gps = st.entries.filter(e => e.latitude != null && e.longitude != null);
+  document.getElementById('smInfo').textContent =
+    st.siteLabel + ' • ' + st.entries.length + (st.entries.length === 1 ? ' entry' : ' entries') +
+    ' • ' + gps.length + ' with GPS';
+
+  const inc = document.getElementById('smIncludeLog');
+  inc.disabled = !st.siteTag;
+  if (!st.siteTag) inc.checked = false;
+  else {
+    const meta = getSiteMapMeta()[st.siteTag];
+    inc.checked = meta ? meta.includeInLog !== false : true;
+  }
+
+  document.getElementById('smAddress').value = '';
+  const latEl = document.getElementById('smLat');
+  const lonEl = document.getElementById('smLon');
+  if (gps.length > 0) {
+    const lats = gps.map(e => e.latitude), lons = gps.map(e => e.longitude);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+    latEl.value = ((minLat + maxLat) / 2).toFixed(6);
+    lonEl.value = ((minLon + maxLon) / 2).toFixed(6);
+    st.zoom = smFitZoom(minLat, maxLat, minLon, maxLon);
+  } else {
+    latEl.value = ''; lonEl.value = '';
+  }
+  document.getElementById('smZoomLabel').textContent = st.zoom;
+
+  document.getElementById('smPreview').style.display = 'none';
+  document.getElementById('smEmpty').style.display = 'block';
+  document.getElementById('siteMapOverlay').style.display = 'flex';
+
+  if (latEl.value) generateSiteMap();
+  else {
+    document.getElementById('smEmpty').textContent = 'No GPS points in the selected entries. Search an address above or enter coordinates.';
+    smStatus('Search an address or type a center latitude/longitude, then tap Update.');
+  }
+}
+
+function closeSiteMapDialog() {
+  document.getElementById('siteMapOverlay').style.display = 'none';
+}
+
+function smZoomBy(d) {
+  smState.zoom = Math.max(14, Math.min(19, smState.zoom + d));
+  document.getElementById('smZoomLabel').textContent = smState.zoom;
+  generateSiteMap();
+}
+
+async function smSearchAddress() {
+  const q = document.getElementById('smAddress').value.trim();
+  if (!q) return;
+  smStatus('Searching address...');
+  try {
+    const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+    const js = await resp.json();
+    if (!js || !js.length) { smStatus('Address not found - try adding city and state', true); return; }
+    document.getElementById('smLat').value = parseFloat(js[0].lat).toFixed(6);
+    document.getElementById('smLon').value = parseFloat(js[0].lon).toFixed(6);
+    if (smState.zoom < 16) {
+      smState.zoom = 17;
+      document.getElementById('smZoomLabel').textContent = smState.zoom;
+    }
+    generateSiteMap();
+  } catch(e) {
+    smStatus('Address lookup failed - check connection', true);
+  }
+}
+
+// Drag the preview image to pan the map center
+function smWirePan() {
+  const img = document.getElementById('smPreview');
+  if (!img) return;
+  let drag = null;
+  img.addEventListener('pointerdown', ev => {
+    drag = { x: ev.clientX, y: ev.clientY };
+    try { img.setPointerCapture(ev.pointerId); } catch(e) {}
+    ev.preventDefault();
+  });
+  img.addEventListener('pointermove', ev => { if (drag) ev.preventDefault(); });
+  img.addEventListener('pointerup', ev => {
+    if (!drag) return;
+    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    drag = null;
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+    const lat = parseFloat(document.getElementById('smLat').value);
+    const lon = parseFloat(document.getElementById('smLon').value);
+    if (!isFinite(lat) || !isFinite(lon)) return;
+    const scale = SITEMAP_W / img.clientWidth;
+    const world = 256 * Math.pow(2, smState.zoom);
+    const nx = smLonToX(lon, world) - dx * scale;
+    const ny = smLatToY(lat, world) - dy * scale;
+    document.getElementById('smLat').value = smYToLat(ny, world).toFixed(6);
+    document.getElementById('smLon').value = smXToLon(nx, world).toFixed(6);
+    generateSiteMap();
+  });
+}
+
+async function generateSiteMap() {
+  const st = smState;
+  if (st.generating) return;
+  const lat = parseFloat(document.getElementById('smLat').value);
+  const lon = parseFloat(document.getElementById('smLon').value);
+  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 85 || Math.abs(lon) > 180) {
+    smStatus('Enter a valid center latitude/longitude', true);
+    return;
+  }
+  st.generating = true;
+  document.getElementById('smUpdateBtn').disabled = true;
+  smStatus('Loading imagery...');
+
+  try {
+    const z = st.zoom;
+    const world = 256 * Math.pow(2, z);
+    const W = SITEMAP_W, H = SITEMAP_H;
+    const left = smLonToX(lon, world) - W / 2;
+    const top  = smLatToY(lat, world) - H / 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#dfe6ee'; ctx.fillRect(0, 0, W, H);
+
+    const nTiles = Math.pow(2, z);
+    const t0x = Math.floor(left / 256), t0y = Math.floor(top / 256);
+    const t1x = Math.floor((left + W - 1) / 256), t1y = Math.floor((top + H - 1) / 256);
+    let failed = 0;
+    const jobs = [];
+    for (let tx = t0x; tx <= t1x; tx++) {
+      for (let ty = t0y; ty <= t1y; ty++) {
+        if (ty < 0 || ty >= nTiles) continue;
+        const wx = ((tx % nTiles) + nTiles) % nTiles;
+        const url = SITEMAP_TILE_URL.replace('{z}', z).replace('{y}', ty).replace('{x}', wx);
+        const ox = Math.round(tx * 256 - left), oy = Math.round(ty * 256 - top);
+        jobs.push(new Promise(res => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => { ctx.drawImage(img, ox, oy); res(); };
+          img.onerror = () => { failed++; res(); };
+          img.src = url;
+        }));
+      }
+    }
+    await Promise.all(jobs);
+
+    // Numbered markers at entry GPS positions (numbers match export Entry #)
+    let markerCount = 0;
+    if (document.getElementById('smMarkers').checked) {
+      st.entries.forEach((e, i) => {
+        if (e.latitude == null || e.longitude == null) return;
+        const px = smLonToX(e.longitude, world) - left;
+        const py = smLatToY(e.latitude, world) - top;
+        if (px < -20 || px > W + 20 || py < -20 || py > H + 20) return;
+        ctx.beginPath();
+        ctx.arc(px, py, 15, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.92)';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), px, py + 0.5);
+        markerCount++;
+      });
+    }
+    st.markers = markerCount;
+
+    // Scale bar (bottom-left)
+    const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);
+    const candidates = [25, 50, 100, 200, 500, 1000, 2000];
+    let barM = candidates[0];
+    for (const c of candidates) { if (c / mpp >= 70 && c / mpp <= 220) { barM = c; break; } barM = c; }
+    const barPx = Math.round(barM / mpp);
+    const bx = 18, by = H - 44;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(bx - 8, by - 22, barPx + 16, 36);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + barPx, by); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx, by + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx + barPx, by - 6); ctx.lineTo(bx + barPx, by + 6); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(barM >= 1000 ? (barM / 1000) + ' km' : barM + ' m', bx + barPx / 2, by - 6);
+
+    // North arrow (top-right)
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(W - 52, 14, 38, 46);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(W - 33, 20); ctx.lineTo(W - 26, 40); ctx.lineTo(W - 33, 35); ctx.lineTo(W - 40, 40);
+    ctx.closePath(); ctx.fill();
+    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('N', W - 33, 43);
+
+    // Attribution bar (bottom)
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, H - 24, W, 24);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(SITEMAP_ATTRIB + '  •  ' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '  •  ' + new Date().toLocaleDateString(), 10, H - 12);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    st.dataUrl = dataUrl;
+    const prev = document.getElementById('smPreview');
+    prev.src = dataUrl;
+    prev.style.display = 'block';
+    document.getElementById('smEmpty').style.display = 'none';
+    document.getElementById('smDownloadBtn').disabled = false;
+
+    // Cache for offline re-export and Photo Log embedding
+    if (st.siteTag) {
+      savePhotoToDB('__sitemap__' + st.siteTag, dataUrlToUint8Array(dataUrl).buffer, 'image/jpeg').catch(() => {});
+      setSiteMapMeta(st.siteTag, {
+        when: new Date().toISOString(), zoom: z, lat, lon, markers: markerCount,
+        includeInLog: document.getElementById('smIncludeLog').checked, site: st.siteLabel
+      });
+    }
+
+    smStatus('Zoom ' + z + ' • ' + markerCount + ' location' + (markerCount === 1 ? '' : 's') + ' marked' +
+      (failed > 0 ? ' • ' + failed + ' tiles failed to load - try a lower zoom' : '') +
+      '. Drag to pan, +/- to zoom.', failed > 0);
+  } catch(e) {
+    console.error('Site map error:', e);
+    smStatus('Could not build the map - check connection and try again', true);
+  } finally {
+    st.generating = false;
+    document.getElementById('smUpdateBtn').disabled = false;
+  }
+}
+
+function smIncludeLogChanged() {
+  const st = smState;
+  if (!st.siteTag) return;
+  const all = getSiteMapMeta();
+  if (all[st.siteTag]) {
+    all[st.siteTag].includeInLog = document.getElementById('smIncludeLog').checked;
+    try { localStorage.setItem(LS_SITEMAPS, JSON.stringify(all)); } catch(e) {}
+  }
+}
+
+function downloadSiteMap() {
+  const st = smState;
+  if (!st.dataUrl) return;
+  const fname = 'Site_Map_' + (st.siteTag ? st.siteTag + '_' : '') + datestamp() + '.jpg';
+  const a = document.createElement('a');
+  a.href = st.dataUrl;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  logExport({
+    type: 'sitemap', filename: fname, site: st.siteF, date: st.dateF,
+    entries: st.entries.length, photos: 0, zoom: st.zoom, markers: st.markers
+  });
+  showToast('Site map saved: ' + fname);
+}
+
+// ============================================================================
 // EXPORT
 // ============================================================================
 function showExportDialog() {
@@ -2207,6 +2586,46 @@ async function generatePhotoLog() {
 
   if (photoItems.length === 0) { showToast('No photos to export', true); return; }
 
+  // Facility Overview page: cached satellite site map for this site (if any)
+  const siteMapEls = [];
+  try {
+    if (bannerSite) {
+      const smTag = safeSiteFile(bannerSite);
+      const smMeta = getSiteMapMeta()[smTag];
+      if (smMeta && smMeta.includeInLog !== false) {
+        const smRec = await getPhotoFromDB('__sitemap__' + smTag);
+        if (smRec && smRec.data) {
+          siteMapEls.push(
+            new docx.Paragraph({
+              spacing: { before: 120, after: 80 },
+              alignment: docx.AlignmentType.CENTER,
+              children: [new docx.TextRun({ text: 'Facility Overview – Satellite View', font: 'Arial', bold: true, color: '1B3A5C', size: 26 })]
+            }),
+            new docx.Paragraph({
+              alignment: docx.AlignmentType.CENTER,
+              spacing: { after: 40 },
+              children: [new docx.ImageRun({
+                type: 'jpg',
+                data: new Uint8Array(smRec.data),
+                transformation: { width: 648, height: 486 },
+                altText: { title: 'Facility satellite view', description: 'Facility satellite view', name: 'Site Map' }
+              })]
+            }),
+            new docx.Paragraph({
+              alignment: docx.AlignmentType.CENTER,
+              spacing: { after: 0 },
+              children: [new docx.TextRun({
+                text: (smMeta.markers ? 'Numbered markers correspond to entry numbers. ' : '') + SITEMAP_ATTRIB,
+                font: 'Arial', size: 14, italics: true, color: '5A6A7A'
+              })]
+            }),
+            new docx.Paragraph({ children: [new docx.PageBreak()] })
+          );
+        }
+      }
+    }
+  } catch(e) { console.error('Site map embed error:', e); }
+
   // -- Template constants matching Appendix C.2 --
   const IMG_SIZE  = 2095500;     // EMU (~2.3 inches square)
   const COL_W     = 4860;        // DXA per photo column
@@ -2352,7 +2771,9 @@ async function generatePhotoLog() {
       });
     }
 
-    gridRows.push(new D.TableRow({ children: [leftCell, gapCell, rightCell] }));
+    // cantSplit keeps each photo+caption pair on one page — without it Word can
+    // break between the image row and the caption row at page boundaries.
+    gridRows.push(new D.TableRow({ cantSplit: true, children: [leftCell, gapCell, rightCell] }));
   }
 
   // -- Title banner --
@@ -2453,7 +2874,7 @@ async function generatePhotoLog() {
           })]
         })
       },
-      children: [titleBanner, divider, photoGrid]
+      children: [titleBanner, divider, ...siteMapEls, photoGrid]
     }]
   });
 
@@ -2510,13 +2931,18 @@ function showExportLog() {
       const site = r.site === '__all__' ? 'All sites' : (r.site === '__none__' ? '(No site)' : (r.site || ''));
       const date = r.date === '__all__' ? 'All dates' : dateKeyLabel(r.date);
       const refs = r.refStart && r.refEnd ? ` • ${escapeHtml(r.refStart)}–${escapeHtml(r.refEnd)}` : '';
+      const badge = r.type === 'photolog' ? 'Photo Log' : (r.type === 'sitemap' ? 'Site Map' : 'ZIP');
+      const badgeCls = r.type === 'photolog' ? 'log-docx' : (r.type === 'sitemap' ? 'log-map' : '');
+      const detail = r.type === 'sitemap'
+        ? `${escapeHtml(site)} • ${date} • zoom ${r.zoom || '?'} • ${r.markers || 0} location${(r.markers || 0) === 1 ? '' : 's'} marked`
+        : `${escapeHtml(site)} • ${date} • ${r.entries} entr${r.entries === 1 ? 'y' : 'ies'} • ${r.photos} photo${r.photos === 1 ? '' : 's'}${refs}`;
       return `
         <div class="export-log-item">
           <div>
-            <span class="export-log-type ${r.type === 'photolog' ? 'log-docx' : ''}">${r.type === 'photolog' ? 'Photo Log' : 'ZIP'}</span>
+            <span class="export-log-type ${badgeCls}">${badge}</span>
             <strong>${when}</strong>
           </div>
-          <div class="export-log-meta">${escapeHtml(site)} • ${date} • ${r.entries} entr${r.entries === 1 ? 'y' : 'ies'} • ${r.photos} photo${r.photos === 1 ? '' : 's'}${refs}</div>
+          <div class="export-log-meta">${detail}</div>
           ${r.filename ? `<div class="export-log-meta" style="word-break:break-all;">${escapeHtml(r.filename)}</div>` : ''}
         </div>`;
     }).join('');

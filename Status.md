@@ -4,7 +4,7 @@
 
 ## Status: ✅ Fully Functional (Deployed & In Use)
 
-The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.4 (2026-07-30): readable photo thumbnails (240px stored thumbs, full-res slot previews, tap-to-view lightbox, automatic regeneration of old low-res thumbs), on top of v2.3's site/date filtering, site-tagged exports, export history log, and batch Set Site / Delete operations. Pending local changes need to be committed and pushed to deploy.
+The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.5 (2026-07-30): satellite Site Map export (Esri World Imagery, address search, drag-to-pan, numbered entry markers, Photo Log embedding) and a Photo Log fix keeping captions on the same page as their photos. v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations. Pending local changes need to be committed and pushed to deploy.
 
 ## Summary
 
@@ -14,6 +14,7 @@ Audit Photo Collector is a mobile-first Progressive Web App built for HGS Engine
 
 - Photo capture with client-side resizing (720p–1440p presets, quality slider)
 - Readable previews: 240px stored thumbnails, form slots hydrate to the full-resolution photo, saved-list thumbnails are tap-to-view (full-size lightbox); old low-res thumbnails regenerate automatically from stored photos on launch
+- Satellite Site Map export (Esri World Imagery tiles, no API key): auto-centers on the filtered entries' GPS points, address search (OSM Nominatim), drag-to-pan / zoom / editable coordinates, numbered markers matching export entry numbers, scale bar + north arrow + attribution, JPG download, cached per site (IndexedDB) and embedded as a Facility Overview page in the Photo Log docx (toggleable). Requires connectivity to generate; cached maps re-export offline.
 - Automatic + manual GPS coordinate capture per entry
 - Save & New workflow with site-name autocomplete (importable `.txt` site list); warns before saving an entry with no site name
 - Edit previously saved entries; saved list shows each entry's site name (amber "No site" warning when missing)
