@@ -177,17 +177,18 @@ if ('serviceWorker' in navigator) {
   }
   .saved-item:last-child { border-bottom: none; }
   .saved-item-thumb {
-    width: 54px;
-    height: 40px;
+    width: 76px;
+    height: 57px;
     object-fit: cover;
-    border-radius: 5px;
+    border-radius: 6px;
     flex-shrink: 0;
     background: var(--photo-bg);
     border: 1px solid var(--border);
+    cursor: pointer;
   }
   .saved-item-thumb-empty {
-    width: 54px;
-    height: 40px;
+    width: 76px;
+    height: 57px;
     border-radius: 5px;
     flex-shrink: 0;
     background: var(--photo-bg);
@@ -870,6 +871,17 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ── PHOTO VIEWER DIALOG ── -->
+<div class="dialog-overlay" id="photoViewerOverlay" style="display:none;" onclick="if(event.target===this)closePhotoViewer()">
+  <div class="dialog" style="max-width:560px;">
+    <h3 id="photoViewerTitle" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></h3>
+    <div id="photoViewerBody" style="max-height:65vh;overflow-y:auto;"></div>
+    <div class="dialog-actions">
+      <button class="btn btn-accent btn-sm" onclick="closePhotoViewer()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -879,6 +891,9 @@ if ('serviceWorker' in navigator) {
 const PHOTO_SLOTS = ['p_main', 'p_wide'];
 const PHOTO_SLOT_NAMES = { p_main: 'Photo 1', p_wide: 'Photo 2' };
 const PHOTO_DEFAULTS = { maxWidth: 1920, maxHeight: 1080, quality: 0.80, preset: '1920x1080' };
+const THUMB_MAX_W   = 240;  // stored thumbnail width (px) — retina-crisp in the saved list
+const THUMB_QUALITY = 0.55; // stored thumbnail JPEG quality
+const THUMB_VERSION = 2;    // bump to regenerate existing thumbnails from stored photos
 const LS_SAVED   = 'audit_saved';
 const LS_CURRENT = 'audit_current';
 const LS_PHOTOS  = 'audit_photo_settings';
@@ -921,6 +936,9 @@ function init() {
   renderSavedPanel();
   updateHeaderBadge();
   checkStorage();
+
+  // Regenerate any old low-res thumbnails from the stored full-res photos
+  setTimeout(() => { upgradeThumbnails().catch(() => {}); }, 800);
 
   // Load saved site list
   try {
@@ -1256,7 +1274,7 @@ function renderSavedPanel() {
     return `
       <div class="saved-item">
         ${thumb
-          ? `<img class="saved-item-thumb" src="${thumb}">`
+          ? `<img class="saved-item-thumb" src="${thumb}" onclick="viewEntryPhotos(${i})" title="Tap to view photos">`
           : `<div class="saved-item-thumb-empty">&#128247;</div>`}
         <div class="saved-item-info">
           <div class="saved-item-name">${escapeHtml(e.location) || '(No location)'}</div>
@@ -1410,6 +1428,7 @@ function editEntry(index) {
       currentPhotos[slot] = { ...photo };
       el.classList.add('has-photo');
       el.innerHTML = `<img src="${photo.thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
+      hydrateSlotPreview(slot, photo);
     } else {
       el.classList.remove('has-photo');
       el.innerHTML = PH;
@@ -1447,6 +1466,7 @@ function editEntry(index) {
             style="color:var(--danger);border-color:var(--danger);padding:6px 12px;">\u2715 Remove</button>
         </div>`;
       ec.appendChild(wrapper);
+      hydrateSlotPreview(slotId, photo);
     });
   }
 
@@ -1677,17 +1697,17 @@ function handlePhoto(input, slotId) {
 
       // Thumbnail for UI
       const tc = document.createElement('canvas');
-      const ts2 = Math.min(80 / w, 1);
+      const ts2 = Math.min(THUMB_MAX_W / w, 1);
       tc.width  = Math.round(w * ts2);
       tc.height = Math.round(h * ts2);
       tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height);
-      const thumbnail = tc.toDataURL('image/jpeg', 0.4);
+      const thumbnail = tc.toDataURL('image/jpeg', THUMB_QUALITY);
 
-      currentPhotos[slotId] = { timestamp: ts, thumbnail, fileType: 'image/jpeg', dbKey };
+      currentPhotos[slotId] = { timestamp: ts, thumbnail, thumbV: THUMB_VERSION, fileType: 'image/jpeg', dbKey };
 
       const container = document.getElementById('photo_' + slotId);
       container.classList.add('has-photo');
-      container.innerHTML = `<img src="${thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
+      container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
       showToast(`${PHOTO_SLOT_NAMES[slotId]} photo saved (~${sizeKB} KB)`);
 
       // Auto-capture GPS with each photo (silent — no error toast if it fails)
@@ -1700,6 +1720,100 @@ function handlePhoto(input, slotId) {
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+// ============================================================================
+// PHOTO PREVIEWS (full-res hydration, thumbnail upgrade, tap-to-view)
+// ============================================================================
+// Full-res photo as an object URL (IndexedDB) or data URL (localStorage fallback)
+async function getFullPhotoSrc(dbKey) {
+  if (idbAvailable) {
+    try {
+      const r = await getPhotoFromDB(dbKey);
+      if (r && r.data) return URL.createObjectURL(new Blob([r.data], { type: r.type || 'image/jpeg' }));
+    } catch(e) {}
+  }
+  return getPhotoFallback(dbKey) || null;
+}
+
+// Swap a form slot's low-res thumbnail preview for the stored full-res photo
+function hydrateSlotPreview(slotId, info) {
+  if (!info || !info.dbKey) return;
+  getFullPhotoSrc(info.dbKey).then(src => {
+    if (!src) return;
+    const img = document.querySelector('#photo_' + slotId + ' img');
+    if (!img) { if (src.startsWith('blob:')) URL.revokeObjectURL(src); return; }
+    if (src.startsWith('blob:')) img.onload = () => URL.revokeObjectURL(src);
+    img.src = src;
+  }).catch(() => {});
+}
+
+// One-time upgrade: regenerate pre-THUMB_VERSION low-res thumbnails
+// from the stored full-resolution photos.
+async function upgradeThumbnails() {
+  let changed = 0;
+  for (const e of savedEntries) {
+    for (const key of Object.keys(e.photos || {})) {
+      const info = e.photos[key];
+      if (!info || info.thumbV >= THUMB_VERSION || !info.dbKey) continue;
+      const src = await getFullPhotoSrc(info.dbKey);
+      if (!src) { info.thumbV = THUMB_VERSION; continue; } // nothing stored to regenerate from
+      const thumb = await new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const s = Math.min(THUMB_MAX_W / img.width, 1);
+            const c = document.createElement('canvas');
+            c.width  = Math.round(img.width * s);
+            c.height = Math.round(img.height * s);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/jpeg', THUMB_QUALITY));
+          } catch(err) { resolve(null); }
+        };
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+      if (src.startsWith('blob:')) URL.revokeObjectURL(src);
+      if (thumb) { info.thumbnail = thumb; info.thumbV = THUMB_VERSION; changed++; }
+    }
+  }
+  if (changed > 0) {
+    saveAll();
+    renderSavedPanel();
+    console.log('Upgraded ' + changed + ' photo thumbnail(s)');
+  }
+}
+
+// Tap a saved-list thumbnail to view the entry's photos full size
+let viewerUrls = [];
+async function viewEntryPhotos(index) {
+  const e = savedEntries[index];
+  if (!e || !e.photos) return;
+  const slots = Object.keys(e.photos).sort((a, b) => {
+    const order = s => s === 'p_main' ? 0 : s === 'p_wide' ? 1 : 2 + parseInt(s.replace('p_extra_','') || 0);
+    return order(a) - order(b);
+  });
+  document.getElementById('photoViewerTitle').textContent = e.location || '(No location)';
+  const body = document.getElementById('photoViewerBody');
+  body.innerHTML = '<div class="saved-empty">Loading photos...</div>';
+  document.getElementById('photoViewerOverlay').style.display = 'flex';
+
+  const parts = [];
+  for (const slot of slots) {
+    const info = e.photos[slot];
+    if (!info) continue;
+    let src = info.dbKey ? await getFullPhotoSrc(info.dbKey) : null;
+    if (src && src.startsWith('blob:')) viewerUrls.push(src);
+    if (!src) src = info.thumbnail;
+    if (src) parts.push('<img src="' + src + '" style="width:100%;border-radius:8px;margin-bottom:10px;display:block;">');
+  }
+  body.innerHTML = parts.length ? parts.join('') : '<div class="saved-empty">No photos stored for this entry.</div>';
+}
+
+function closePhotoViewer() {
+  viewerUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch(e) {} });
+  viewerUrls = [];
+  document.getElementById('photoViewerOverlay').style.display = 'none';
 }
 
 // ============================================================================
@@ -2672,6 +2786,7 @@ function loadAll() {
             style="color:var(--danger);border-color:var(--danger);padding:6px 12px;">✕ Remove</button>
         </div>`;
       if (extraSlotsContainer) extraSlotsContainer.appendChild(wrapper);
+      if (ph) hydrateSlotPreview(slotId, currentPhotos[slotId]);
     });
 
     const PH = `<span class="placeholder">
@@ -2687,6 +2802,7 @@ function loadAll() {
         if (el) {
           el.classList.add('has-photo');
           el.innerHTML = `<img src="${currentPhotos[slot].thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
+          hydrateSlotPreview(slot, currentPhotos[slot]);
         }
       }
     });

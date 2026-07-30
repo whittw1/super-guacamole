@@ -4,7 +4,7 @@
 
 ## Status: ✅ Fully Functional (Deployed & In Use)
 
-The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.3 (2026-07-30): site/date filtering, site-tagged exports, export history log, and batch Set Site / Delete operations. Pending local changes need to be committed and pushed to deploy.
+The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.4 (2026-07-30): readable photo thumbnails (240px stored thumbs, full-res slot previews, tap-to-view lightbox, automatic regeneration of old low-res thumbs), on top of v2.3's site/date filtering, site-tagged exports, export history log, and batch Set Site / Delete operations. Pending local changes need to be committed and pushed to deploy.
 
 ## Summary
 
@@ -13,6 +13,7 @@ Audit Photo Collector is a mobile-first Progressive Web App built for HGS Engine
 ## Capabilities
 
 - Photo capture with client-side resizing (720p–1440p presets, quality slider)
+- Readable previews: 240px stored thumbnails, form slots hydrate to the full-resolution photo, saved-list thumbnails are tap-to-view (full-size lightbox); old low-res thumbnails regenerate automatically from stored photos on launch
 - Automatic + manual GPS coordinate capture per entry
 - Save & New workflow with site-name autocomplete (importable `.txt` site list); warns before saving an entry with no site name
 - Edit previously saved entries; saved list shows each entry's site name (amber "No site" warning when missing)
