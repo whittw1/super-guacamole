@@ -531,6 +531,57 @@ if ('serviceWorker' in navigator) {
   .overflow-item:hover { background: var(--card-alt); }
   .overflow-item .oi-icon { font-size: 17px; width: 22px; text-align: center; }
 
+  /* ── Saved panel filter bar ── */
+  .saved-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--card-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  .saved-filter-bar select {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px 10px;
+    background: var(--input-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .saved-filter-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .saved-filter-count { font-size: 12px; color: var(--text-dim); }
+
+  /* ── Export log ── */
+  .export-log-item {
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .export-log-item:last-child { border-bottom: none; }
+  .export-log-type {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 1px 7px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    margin-right: 6px;
+    text-transform: uppercase;
+  }
+  .export-log-type.log-docx { background: var(--success); }
+  .export-log-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
   @media (max-width: 640px) {
     /* Hide individual secondary buttons, show overflow toggle */
     .header-btn-secondary { display: none !important; }
@@ -585,6 +636,9 @@ if ('serviceWorker' in navigator) {
         <button class="overflow-item" onclick="saveBackup();closeOverflow()">
           <span class="oi-icon">&#128228;</span> Backup
         </button>
+        <button class="overflow-item" onclick="showExportLog();closeOverflow()">
+          <span class="oi-icon">&#128220;</span> Export Log
+        </button>
       </div>
     </div>
   </div>
@@ -598,7 +652,22 @@ if ('serviceWorker' in navigator) {
       <h2>&#9989; Saved Entries <span class="saved-count-badge" id="savedCountBadge">0</span></h2>
       <span id="savedToggle" style="color:var(--text-dim);font-size:13px;">&#9660; Show</span>
     </div>
-    <div class="saved-panel-body collapsed" id="savedPanelBody"></div>
+    <div class="saved-panel-body collapsed" id="savedPanelBody">
+      <div class="saved-filter-bar" id="savedFilterBar" style="display:none;">
+        <select id="filterSite" onchange="onFilterChange()" title="Filter by site"></select>
+        <select id="filterDate" onchange="onFilterChange()" title="Filter by date"></select>
+        <div class="saved-filter-actions">
+          <span class="saved-filter-count" id="filterCount"></span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm" onclick="batchSetSite()" style="padding:6px 10px;font-size:12px;"
+              title="Assign a site name to every entry matching the filter">&#127991; Set Site</button>
+            <button class="btn btn-danger btn-sm" onclick="batchDeleteFiltered()" style="padding:6px 10px;font-size:12px;"
+              title="Delete every entry matching the filter">&#128465; Delete</button>
+          </div>
+        </div>
+      </div>
+      <div id="savedList"></div>
+    </div>
   </div>
 
   <!-- ── SITE / SESSION LABEL ── -->
@@ -712,6 +781,19 @@ if ('serviceWorker' in navigator) {
   <div class="dialog">
     <h3>&#128230; Export</h3>
     <p>Photos will be renamed with sequential reference numbers.<br>Enter the <strong>starting</strong> number for this session.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+        <label style="font-size:12px;font-weight:600;color:var(--text-label);text-transform:uppercase;letter-spacing:0.5px;">Site</label>
+        <select id="exportSiteFilter" onchange="updateExportCount()"
+          style="width:100%;padding:9px 10px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+        <label style="font-size:12px;font-weight:600;color:var(--text-label);text-transform:uppercase;letter-spacing:0.5px;">Date</label>
+        <select id="exportDateFilter" onchange="updateExportCount()"
+          style="width:100%;padding:9px 10px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+    </div>
+    <div id="exportCount" style="font-size:12px;color:var(--text-dim);margin-bottom:12px;"></div>
     <div style="display:flex;flex-direction:column;gap:5px;">
       <label style="font-size:12px;font-weight:600;color:var(--text-label);text-transform:uppercase;letter-spacing:0.5px;">Starting Reference Number</label>
       <input type="text" id="refStart" value="P0001" placeholder="e.g. P0001"
@@ -720,6 +802,7 @@ if ('serviceWorker' in navigator) {
       <div id="refPreview" style="font-size:12px;color:var(--text-dim);margin-top:2px;"></div>
     </div>
     <div class="dialog-actions">
+      <button class="btn btn-outline btn-sm" onclick="showExportLog()" title="View export history" style="margin-right:auto;padding:7px 10px;">&#128220;</button>
       <button class="btn btn-outline btn-sm" onclick="closeExportDialog()">Cancel</button>
       <button class="btn btn-success btn-sm" onclick="runExport()">&#128230; Export ZIP</button>
       <button class="btn btn-accent btn-sm" onclick="generatePhotoLog()" title="Generate Appendix C.2 Photo Log (.docx)">&#128196; Photo Log</button>
@@ -775,6 +858,18 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- ── EXPORT LOG DIALOG ── -->
+<div class="dialog-overlay" id="exportLogOverlay" style="display:none;" onclick="if(event.target===this)closeExportLog()">
+  <div class="dialog" style="max-width:480px;">
+    <h3>&#128220; Export Log</h3>
+    <div id="exportLogList" style="max-height:55vh;overflow-y:auto;"></div>
+    <div class="dialog-actions">
+      <button class="btn btn-outline btn-sm" onclick="clearExportLog()" style="margin-right:auto;color:var(--danger);border-color:var(--danger);">Clear Log</button>
+      <button class="btn btn-accent btn-sm" onclick="closeExportLog()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -788,6 +883,7 @@ const LS_SAVED   = 'audit_saved';
 const LS_CURRENT = 'audit_current';
 const LS_PHOTOS  = 'audit_photo_settings';
 const LS_SITES   = 'audit_site_list';
+const LS_EXPORTS = 'audit_export_log';
 const IDB_NAME   = 'audit_photos_v1';
 
 // ============================================================================
@@ -801,6 +897,8 @@ let extraPhotoSlots = [];  // slot IDs added dynamically beyond the base two
 let siteList       = [];  // imported site names for the combo-box datalist
 let currentGPS     = null; // { latitude, longitude, accuracy } for current entry
 let editingIndex   = null; // index into savedEntries when editing; null = new entry mode
+let filterSite     = '__all__'; // saved-panel site filter ('__all__', '__none__', or a site name)
+let filterDate     = '__all__'; // saved-panel date filter ('__all__' or 'YYYY-MM-DD')
 
 // ============================================================================
 // INIT
@@ -894,6 +992,78 @@ function genId() {
 }
 
 // ============================================================================
+// FILTER HELPERS (site + date)
+// ============================================================================
+function entryDateKey(e) {
+  if (!e || !e.timestamp) return '';
+  const d = new Date(e.timestamp);
+  if (isNaN(d)) return '';
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function dateKeyLabel(key) {
+  if (!key) return '(No date)';
+  const d = new Date(key + 'T12:00:00'); // noon avoids timezone date shifts
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+}
+
+function entryMatches(e, siteF, dateF) {
+  const site = (e.siteName || '').trim();
+  if (siteF !== '__all__') {
+    if (siteF === '__none__') { if (site) return false; }
+    else if (site !== siteF) return false;
+  }
+  if (dateF !== '__all__' && entryDateKey(e) !== dateF) return false;
+  return true;
+}
+
+function distinctSites() {
+  const sites = new Set();
+  let hasNone = false;
+  savedEntries.forEach(e => {
+    const s = (e.siteName || '').trim();
+    if (s) sites.add(s); else hasNone = true;
+  });
+  return { sites: [...sites].sort((a,b) => a.localeCompare(b)), hasNone };
+}
+
+function distinctDates() {
+  const dates = new Set();
+  savedEntries.forEach(e => { const k = entryDateKey(e); if (k) dates.add(k); });
+  return [...dates].sort().reverse(); // newest first
+}
+
+// Rebuild a site <select>'s options, keeping the current selection when possible.
+// Returns the (possibly reset) selected value.
+function buildSiteOptions(sel, current) {
+  const { sites, hasNone } = distinctSites();
+  let html = '<option value="__all__">All sites</option>';
+  if (hasNone) html += '<option value="__none__">(No site)</option>';
+  html += sites.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  sel.innerHTML = html;
+  const valid = ['__all__'].concat(hasNone ? ['__none__'] : [], sites);
+  sel.value = valid.includes(current) ? current : '__all__';
+  return sel.value;
+}
+
+function buildDateOptions(sel, current) {
+  const dates = distinctDates();
+  sel.innerHTML = '<option value="__all__">All dates</option>' +
+    dates.map(d => `<option value="${d}">${dateKeyLabel(d)}</option>`).join('');
+  sel.value = ['__all__'].concat(dates).includes(current) ? current : '__all__';
+  return sel.value;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function safeSiteFile(name) {
+  return (name || '').trim().replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').substring(0, 40);
+}
+
+// ============================================================================
 // DYNAMIC PHOTO SLOTS
 // ============================================================================
 function addPhotoSlot() {
@@ -972,6 +1142,12 @@ function saveEntryAndNew() {
     return;
   }
 
+  if (!document.getElementById('siteName').value.trim() &&
+      !confirm('No Site / Session is set, so this entry will not be tied to a site.\n\nSave without a site name?')) {
+    document.getElementById('siteName').focus();
+    return;
+  }
+
   const entry = {
     id:        currentEntryId,
     siteName:  document.getElementById('siteName').value.trim(),
@@ -1043,33 +1219,53 @@ function clearEntryForm(confirmFirst = true) {
 // SAVED PANEL
 // ============================================================================
 function renderSavedPanel() {
-  const body  = document.getElementById('savedPanelBody');
+  const bar   = document.getElementById('savedFilterBar');
+  const list  = document.getElementById('savedList');
   const badge = document.getElementById('savedCountBadge');
   const count = document.getElementById('entryCountNum');
   badge.textContent = savedEntries.length;
   count.textContent = savedEntries.length;
 
   if (savedEntries.length === 0) {
-    body.innerHTML = '<div class="saved-empty">No entries yet. Fill in location + details, capture photos, then tap "Save & New".</div>';
+    bar.style.display = 'none';
+    list.innerHTML = '<div class="saved-empty">No entries yet. Fill in location + details, capture photos, then tap "Save & New".</div>';
     return;
   }
 
-  body.innerHTML = savedEntries.map((e, i) => {
+  // Filter bar — rebuild the option lists, keeping the current selection
+  bar.style.display = 'flex';
+  filterSite = buildSiteOptions(document.getElementById('filterSite'), filterSite);
+  filterDate = buildDateOptions(document.getElementById('filterDate'), filterDate);
+
+  const visible  = savedEntries.map((e, i) => ({ e, i })).filter(({ e }) => entryMatches(e, filterSite, filterDate));
+  const filtered = filterSite !== '__all__' || filterDate !== '__all__';
+  document.getElementById('filterCount').textContent = filtered
+    ? `${visible.length} of ${savedEntries.length} entries`
+    : `${savedEntries.length} entr${savedEntries.length === 1 ? 'y' : 'ies'}`;
+
+  if (visible.length === 0) {
+    list.innerHTML = '<div class="saved-empty">No entries match the current site/date filter.</div>';
+    return;
+  }
+
+  list.innerHTML = visible.map(({ e, i }) => {
     const thumb = e.photos && e.photos.p_main && e.photos.p_main.thumbnail;
     const photoCount = e.photos ? Object.keys(e.photos).length : 0;
-    const ts = e.timestamp ? new Date(e.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+    const ts = e.timestamp ? new Date(e.timestamp).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    const site = (e.siteName || '').trim();
     return `
       <div class="saved-item">
         ${thumb
           ? `<img class="saved-item-thumb" src="${thumb}">`
           : `<div class="saved-item-thumb-empty">&#128247;</div>`}
         <div class="saved-item-info">
-          <div class="saved-item-name">${e.location || '(No location)'}</div>
+          <div class="saved-item-name">${escapeHtml(e.location) || '(No location)'}</div>
+          <div style="font-size:11px;font-weight:600;color:${site ? 'var(--accent)' : 'var(--warning)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${site ? escapeHtml(site) : '⚠ No site'}</div>
           ${e.latitude != null ? `<div style="font-size:10px;color:var(--text-dim);">${e.latitude.toFixed(6)}°N, ${Math.abs(e.longitude).toFixed(6)}°${e.longitude < 0 ? 'W' : 'E'}</div>` : ''}
           <div class="saved-item-detail">
             ${photoCount} photo${photoCount !== 1 ? 's' : ''}
-            ${e.details ? ' \u2022 ' + e.details.slice(0,60) + (e.details.length > 60 ? '\u2026' : '') : ''}
-            ${ts ? ' \u2022 ' + ts : ''}
+            ${e.details ? ' • ' + escapeHtml(e.details.slice(0,60)) + (e.details.length > 60 ? '…' : '') : ''}
+            ${ts ? ' • ' + ts : ''}
           </div>
         </div>
         <div class="saved-item-actions">
@@ -1078,6 +1274,61 @@ function renderSavedPanel() {
         </div>
       </div>`;
   }).join('');
+}
+
+function onFilterChange() {
+  filterSite = document.getElementById('filterSite').value;
+  filterDate = document.getElementById('filterDate').value;
+  renderSavedPanel();
+}
+
+// ============================================================================
+// BATCH OPERATIONS (on the filtered set)
+// ============================================================================
+function batchSetSite() {
+  if (editingIndex !== null) { showToast('Finish or cancel the current edit first', true); return; }
+  const matches = savedEntries.filter(e => entryMatches(e, filterSite, filterDate));
+  if (matches.length === 0) { showToast('No entries match the current filter', true); return; }
+
+  const suggested = (filterSite !== '__all__' && filterSite !== '__none__')
+    ? filterSite
+    : document.getElementById('siteName').value.trim();
+  const name = prompt(`Set Site / Session for ${matches.length} entr${matches.length === 1 ? 'y' : 'ies'}:`, suggested);
+  if (name === null) return;
+  const clean = name.trim();
+  if (!clean) { showToast('Site name cannot be empty', true); return; }
+
+  matches.forEach(e => { e.siteName = clean; });
+  saveAll();
+  renderSavedPanel();
+  showToast(`✔ Site set on ${matches.length} entr${matches.length === 1 ? 'y' : 'ies'}`);
+}
+
+function batchDeleteFiltered() {
+  if (editingIndex !== null) { showToast('Finish or cancel the current edit first', true); return; }
+  const matches = savedEntries.map((e, i) => ({ e, i })).filter(({ e }) => entryMatches(e, filterSite, filterDate));
+  if (matches.length === 0) { showToast('No entries match the current filter', true); return; }
+
+  const parts = [];
+  if (filterSite === '__none__') parts.push('no site');
+  else if (filterSite !== '__all__') parts.push(`site "${filterSite}"`);
+  if (filterDate !== '__all__') parts.push(dateKeyLabel(filterDate));
+  const scope = parts.length ? ` (${parts.join(', ')})` : ' — ALL saved entries';
+
+  if (!confirm(
+    `Delete ${matches.length} entr${matches.length === 1 ? 'y' : 'ies'}${scope}?\n\n` +
+    `Their stored photos will also be removed. This cannot be undone.`
+  )) return;
+
+  matches.forEach(({ e }) => {
+    Object.values(e.photos || {}).forEach(p => { if (p && p.dbKey) deletePhotoFromDB(p.dbKey); });
+  });
+  const del = new Set(matches.map(m => m.i));
+  savedEntries = savedEntries.filter((_, i) => !del.has(i));
+  saveAll();
+  renderSavedPanel();
+  updateHeaderBadge();
+  showToast(`Deleted ${matches.length} entr${matches.length === 1 ? 'y' : 'ies'}`);
 }
 
 function toggleSavedPanel() {
@@ -1092,8 +1343,11 @@ function showSavedList() {
 }
 
 function deleteEntry(index) {
-  const loc = savedEntries[index].location || 'entry';
+  const entry = savedEntries[index];
+  if (!entry) return;
+  const loc = entry.location || 'entry';
   if (confirm(`Delete "${loc}"?`)) {
+    Object.values(entry.photos || {}).forEach(p => { if (p && p.dbKey) deletePhotoFromDB(p.dbKey); });
     savedEntries.splice(index, 1);
     saveAll();
     renderSavedPanel();
@@ -1211,6 +1465,12 @@ function saveEdit() {
 
   if (!location && !details && Object.keys(currentPhotos).length === 0) {
     showToast('Add a location, details, or at least one photo first', true);
+    return;
+  }
+
+  if (!document.getElementById('siteName').value.trim() &&
+      !confirm('No Site / Session is set, so this entry will not be tied to a site.\n\nSave without a site name?')) {
+    document.getElementById('siteName').focus();
     return;
   }
 
@@ -1520,6 +1780,10 @@ function showExportDialog() {
      document.getElementById('entryDetails').value.trim()  ||
      Object.keys(currentPhotos).length > 0 ? 1 : 0);
   if (total === 0) { showToast('Nothing to export yet', true); return; }
+  // Export filters default to the saved-panel filter selection
+  buildSiteOptions(document.getElementById('exportSiteFilter'), filterSite);
+  buildDateOptions(document.getElementById('exportDateFilter'), filterDate);
+  updateExportCount();
   updateRefPreview();
   document.getElementById('exportOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('refStart').focus(), 100);
@@ -1554,31 +1818,59 @@ function fmtRef(prefix, num, digits) {
   return prefix + String(num).padStart(digits,'0');
 }
 
+// Current unsaved form entry (or null if the form is empty)
+function currentUnsavedEntry() {
+  const loc = document.getElementById('entryLocation').value.trim();
+  const det = document.getElementById('entryDetails').value.trim();
+  if (!loc && !det && Object.keys(currentPhotos).length === 0) return null;
+  return {
+    id:        currentEntryId,
+    siteName:  document.getElementById('siteName').value.trim(),
+    location:  loc,
+    details:   det,
+    latitude:  currentGPS ? currentGPS.latitude  : null,
+    longitude: currentGPS ? currentGPS.longitude : null,
+    gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
+    timestamp: new Date().toISOString(),
+    photos:    Object.assign({}, currentPhotos)
+  };
+}
+
+// All entries (saved + unsaved current) matching the export site/date filter
+function collectExportEntries(siteF, dateF) {
+  const all = JSON.parse(JSON.stringify(savedEntries));
+  const cur = currentUnsavedEntry();
+  if (cur) all.push(cur);
+  return all.filter(e => entryMatches(e, siteF, dateF));
+}
+
+function updateExportCount() {
+  const siteF = document.getElementById('exportSiteFilter').value;
+  const dateF = document.getElementById('exportDateFilter').value;
+  const entries = collectExportEntries(siteF, dateF);
+  const photos  = entries.reduce((n, e) => n + Object.keys(e.photos || {}).length, 0);
+  const el = document.getElementById('exportCount');
+  if (entries.length === 0) {
+    el.textContent = 'No entries match this site/date filter';
+    el.style.color = 'var(--warning)';
+  } else {
+    el.textContent = `Will export ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} • ${photos} photo${photos === 1 ? '' : 's'}`;
+    el.style.color = 'var(--text-dim)';
+  }
+}
+
 async function runExport() {
   const pStr   = document.getElementById('refStart').value.trim();
   const parsed = parseRef(pStr);
   if (!parsed) { showToast('Invalid reference number', true); return; }
   closeExportDialog();
 
-  // Collect all entries including any unsaved current entry
-  let allEntries = JSON.parse(JSON.stringify(savedEntries));
-  const loc  = document.getElementById('entryLocation').value.trim();
-  const det  = document.getElementById('entryDetails').value.trim();
-  if (loc || det || Object.keys(currentPhotos).length > 0) {
-    allEntries.push({
-      id:        currentEntryId,
-      siteName:  document.getElementById('siteName').value.trim(),
-      location:  loc,
-      details:   det,
-      latitude:  currentGPS ? currentGPS.latitude  : null,
-      longitude: currentGPS ? currentGPS.longitude : null,
-      gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
-      timestamp: new Date().toISOString(),
-      photos:    Object.assign({}, currentPhotos)
-    });
-  }
+  // Collect entries matching the export site/date filter (incl. unsaved current)
+  const siteF = document.getElementById('exportSiteFilter').value;
+  const dateF = document.getElementById('exportDateFilter').value;
+  const allEntries = collectExportEntries(siteF, dateF);
 
-  if (allEntries.length === 0) { showToast('Nothing to export', true); return; }
+  if (allEntries.length === 0) { showToast('No entries match the export filter', true); return; }
   if (typeof XLSX === 'undefined') { showToast('SheetJS not loaded — go online once first', true); return; }
 
   showToast('Building export…');
@@ -1609,6 +1901,7 @@ async function runExport() {
   const entryMaps = [];
   for (const entry of allEntries) {
     const map = {};
+    const siteTag = safeSiteFile(entry.siteName);
     const allSlots = Object.keys(entry.photos || {}).sort((a, b) => {
       const order = s => s === 'p_main' ? 0 : s === 'p_wide' ? 1 : 2 + parseInt(s.replace('p_extra_','') || 0);
       return order(a) - order(b);
@@ -1620,8 +1913,9 @@ async function runExport() {
         if (pd) {
           const ref = nextRef();
           const ext = pd.type.includes('png') ? '.png' : '.jpg';
-          photosFolder.file(ref + ext, pd.bytes);
-          map[slot] = ref + ext;
+          const fname = ref + (siteTag ? '_' + siteTag : '') + ext;
+          photosFolder.file(fname, pd.bytes);
+          map[slot] = fname;
           photoCount++;
         } else {
           map[slot] = null;
@@ -1682,21 +1976,27 @@ async function runExport() {
   ws['!cols'] = [{wch:8},{wch:28},{wch:30},{wch:14},{wch:14},{wch:16},{wch:50},{wch:20},...photoCols];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Audit Entries');
-  zip.file('Audit_Report_' + datestamp() + '.xlsx', XLSX.write(wb, {bookType:'xlsx',type:'array'}));
-  zip.file('Audit_Data_'   + datestamp() + '.csv', csv);
+  const zipSiteTag = (siteF !== '__all__' && siteF !== '__none__') ? safeSiteFile(siteF) : '';
+  zip.file('Audit_Report_' + (zipSiteTag ? zipSiteTag + '_' : '') + datestamp() + '.xlsx', XLSX.write(wb, {bookType:'xlsx',type:'array'}));
+  zip.file('Audit_Data_'   + (zipSiteTag ? zipSiteTag + '_' : '') + datestamp() + '.csv', csv);
 
   try {
     const blob = await zip.generateAsync({ type: 'blob' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = 'Audit_Export_' + datestamp() + '.zip';
+    a.download = 'Audit_Export_' + (zipSiteTag ? zipSiteTag + '_' : '') + datestamp() + '.zip';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     const endRef = fmtRef(parsed.prefix, counter - 1, parsed.digits);
     showToast(`Exported ${allEntries.length} entries, ${photoCount} photos (${pStr}\u2013${endRef})`);
+    logExport({
+      type: 'zip', filename: a.download, site: siteF, date: dateF,
+      entries: allEntries.length, photos: photoCount,
+      refStart: photoCount > 0 ? pStr : '', refEnd: photoCount > 0 ? endRef : ''
+    });
 
     // Clean up any localStorage fallback copies now that export succeeded.
     // These are only needed if IDB was unavailable; once exported they're redundant.
@@ -1729,25 +2029,18 @@ async function generatePhotoLog() {
     return;
   }
 
-  // Collect all entries including any unsaved current entry
-  let allEntries = JSON.parse(JSON.stringify(savedEntries));
-  const loc  = document.getElementById('entryLocation').value.trim();
-  const det  = document.getElementById('entryDetails').value.trim();
-  if (loc || det || Object.keys(currentPhotos).length > 0) {
-    allEntries.push({
-      id:        currentEntryId,
-      siteName:  document.getElementById('siteName').value.trim(),
-      location:  loc,
-      details:   det,
-      latitude:  currentGPS ? currentGPS.latitude  : null,
-      longitude: currentGPS ? currentGPS.longitude : null,
-      gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
-      timestamp: new Date().toISOString(),
-      photos:    Object.assign({}, currentPhotos)
-    });
-  }
+  // Collect entries matching the export site/date filter (incl. unsaved current)
+  const siteF = document.getElementById('exportSiteFilter').value;
+  const dateF = document.getElementById('exportDateFilter').value;
+  const allEntries = collectExportEntries(siteF, dateF);
 
-  if (allEntries.length === 0) { showToast('Nothing to export', true); return; }
+  if (allEntries.length === 0) { showToast('No entries match the export filter', true); return; }
+
+  // Site shown on the banner/header when the export covers a single site
+  const exportSites = [...new Set(allEntries.map(e => (e.siteName || '').trim()).filter(Boolean))];
+  const bannerSite  = exportSites.length === 1 ? exportSites[0]
+    : (siteF !== '__all__' && siteF !== '__none__' ? siteF : '');
+
   showToast('Building Photo Log\u2026');
 
   const D = docx;
@@ -1785,13 +2078,14 @@ async function generatePhotoLog() {
           let caption = '';
           if (entry.location && entry.details) caption = entry.location + ' \u2013 ' + entry.details;
           else caption = entry.location || entry.details || '';
+          const siteLine = entry.siteName ? 'Site: ' + entry.siteName : '';
           // GPS coordinates stored separately so they render on their own line
           let gpsLine = '';
           if (entry.latitude != null && entry.longitude != null) {
             const lonDir = entry.longitude < 0 ? 'W' : 'E';
             gpsLine = `GPS: ${entry.latitude.toFixed(6)}\u00B0N, ${Math.abs(entry.longitude).toFixed(6)}\u00B0${lonDir}`;
           }
-          photoItems.push({ bytes: pd.bytes, type: pd.type, caption, gpsLine, ref });
+          photoItems.push({ bytes: pd.bytes, type: pd.type, caption, siteLine, gpsLine, ref });
         }
       }
     }
@@ -1871,6 +2165,14 @@ async function generatePhotoLog() {
                   })
                 ]
               }),
+              ...(item.siteLine ? [new D.Paragraph({
+                spacing: { before: 20, after: 0 },
+                alignment: D.AlignmentType.CENTER,
+                children: [new D.TextRun({
+                  text: item.siteLine,
+                  font: FONT, size: 16, bold: true, color: NAVY
+                })]
+              })] : []),
               ...(item.gpsLine ? [new D.Paragraph({
                 spacing: { before: 20, after: 0 },
                 alignment: D.AlignmentType.CENTER,
@@ -1967,7 +2269,15 @@ async function generatePhotoLog() {
               text: 'Site Photographs',
               font: FONT, color: 'F2F6FA', size: 28
             })]
-          })
+          }),
+          ...(bannerSite ? [new D.Paragraph({
+            spacing: { before: 40, after: 0 },
+            alignment: D.AlignmentType.CENTER,
+            children: [new D.TextRun({
+              text: bannerSite,
+              font: FONT, bold: true, color: 'DCE6F2', size: 22
+            })]
+          })] : [])
         ]
       })]
     })]
@@ -1989,7 +2299,7 @@ async function generatePhotoLog() {
   });
 
   // -- Assemble document --
-  const siteName = document.getElementById('siteName').value.trim() || 'DLA Site Visit';
+  const siteName = bannerSite || document.getElementById('siteName').value.trim() || 'DLA Site Visit';
   const doc = new D.Document({
     sections: [{
       properties: {
@@ -2005,7 +2315,7 @@ async function generatePhotoLog() {
             alignment: D.AlignmentType.RIGHT,
             border: { bottom: { style: D.BorderStyle.SINGLE, size: 4, color: BLUE_LINE, space: 4 } },
             children: [new D.TextRun({
-              text: 'DLA Site Visit \u2013 Photo Documentation',
+              text: (bannerSite || 'DLA Site Visit') + ' \u2013 Photo Documentation',
               font: FONT, italics: true, color: GRAY_TEXT, size: 16
             })]
           })]
@@ -2046,10 +2356,70 @@ async function generatePhotoLog() {
     URL.revokeObjectURL(url);
     const endRef = fmtRef(parsed.prefix, counter - 1, parsed.digits);
     showToast(`Photo Log exported: ${photoItems.length} photos (${pStr}\u2013${endRef})`);
+    logExport({
+      type: 'photolog', filename: a.download, site: siteF, date: dateF,
+      entries: allEntries.length, photos: photoItems.length,
+      refStart: pStr, refEnd: endRef
+    });
   } catch(e) {
     console.error('Photo Log export error:', e);
     showToast('Photo Log export error \u2014 try again', true);
   }
+}
+
+// ============================================================================
+// EXPORT LOG
+// ============================================================================
+function loadExportLog() {
+  try {
+    const l = localStorage.getItem(LS_EXPORTS);
+    if (l) return JSON.parse(l);
+  } catch(e) {}
+  return [];
+}
+
+function logExport(rec) {
+  const log = loadExportLog();
+  log.unshift(Object.assign({ when: new Date().toISOString() }, rec));
+  if (log.length > 200) log.length = 200; // keep the most recent 200
+  try { localStorage.setItem(LS_EXPORTS, JSON.stringify(log)); } catch(e) {}
+}
+
+function showExportLog() {
+  const list = document.getElementById('exportLogList');
+  const log  = loadExportLog();
+  if (log.length === 0) {
+    list.innerHTML = '<div class="saved-empty">No exports yet. Every ZIP and Photo Log export is recorded here.</div>';
+  } else {
+    list.innerHTML = log.map(r => {
+      const when = r.when ? new Date(r.when).toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const site = r.site === '__all__' ? 'All sites' : (r.site === '__none__' ? '(No site)' : (r.site || ''));
+      const date = r.date === '__all__' ? 'All dates' : dateKeyLabel(r.date);
+      const refs = r.refStart && r.refEnd ? ` • ${escapeHtml(r.refStart)}–${escapeHtml(r.refEnd)}` : '';
+      return `
+        <div class="export-log-item">
+          <div>
+            <span class="export-log-type ${r.type === 'photolog' ? 'log-docx' : ''}">${r.type === 'photolog' ? 'Photo Log' : 'ZIP'}</span>
+            <strong>${when}</strong>
+          </div>
+          <div class="export-log-meta">${escapeHtml(site)} • ${date} • ${r.entries} entr${r.entries === 1 ? 'y' : 'ies'} • ${r.photos} photo${r.photos === 1 ? '' : 's'}${refs}</div>
+          ${r.filename ? `<div class="export-log-meta" style="word-break:break-all;">${escapeHtml(r.filename)}</div>` : ''}
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('exportLogOverlay').style.display = 'flex';
+}
+
+function closeExportLog() {
+  document.getElementById('exportLogOverlay').style.display = 'none';
+}
+
+function clearExportLog() {
+  const log = loadExportLog();
+  if (log.length === 0) { closeExportLog(); return; }
+  if (!confirm(`Clear the export log (${log.length} record${log.length === 1 ? '' : 's'})?`)) return;
+  try { localStorage.removeItem(LS_EXPORTS); } catch(e) {}
+  showExportLog();
 }
 
 // ============================================================================
