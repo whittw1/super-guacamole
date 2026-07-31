@@ -4,7 +4,7 @@
 
 ## Status: ✅ Fully Functional (Deployed & In Use)
 
-The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.5 (2026-07-30): satellite Site Map export (Esri World Imagery, address search, drag-to-pan, numbered entry markers, Photo Log embedding) and a Photo Log fix keeping captions on the same page as their photos. v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations. Pending local changes need to be committed and pushed to deploy.
+The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.5 (2026-07-30, deployed): satellite Site Map export (Esri World Imagery, address search, drag-to-pan, numbered entry markers, standalone Word document, Photo Log embedding) and a Photo Log fix keeping captions on the same page as their photos. v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations.
 
 ## Summary
 
