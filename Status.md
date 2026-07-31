@@ -1,10 +1,10 @@
 # Audit Photo Collector — Status
 
-**Last updated:** 2026-07-30
+**Last updated:** 2026-07-31
 
 ## Status: ✅ Fully Functional (Deployed & In Use)
 
-The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.5 (2026-07-30, deployed): satellite Site Map export (Esri World Imagery, address search, drag-to-pan, numbered entry markers, standalone Word document, Photo Log embedding) and a Photo Log fix keeping captions on the same page as their photos. v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations.
+The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.6 (2026-07-31): satellite Site Map export (Esri World Imagery, address search, drag-to-pan, standalone Word document, Photo Log embedding) and a Photo Log fix keeping captions on the same page as their photos. Entry-location markers were removed from the site map at client request (GPS not accurate enough). v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations.
 
 ## Summary
 
@@ -14,7 +14,7 @@ Audit Photo Collector is a mobile-first Progressive Web App built for HGS Engine
 
 - Photo capture with client-side resizing (720p–1440p presets, quality slider)
 - Readable previews: 240px stored thumbnails, form slots hydrate to the full-resolution photo, saved-list thumbnails are tap-to-view (full-size lightbox); old low-res thumbnails regenerate automatically from stored photos on launch
-- Satellite Site Map export (Esri World Imagery tiles, no API key): auto-centers on the filtered entries' GPS points, address search (OSM Nominatim), drag-to-pan / zoom / editable coordinates, numbered markers matching export entry numbers, scale bar + north arrow + attribution, JPG download, optional standalone Word document (Facility Overview attachment), cached per site (IndexedDB) and embedded as a Facility Overview page in the Photo Log docx (toggleable). Requires connectivity to generate; cached maps re-export offline.
+- Satellite Site Map export (Esri World Imagery tiles, no API key): auto-centers on the filtered entries' GPS points, address search (OSM Nominatim), drag-to-pan / zoom / editable coordinates, scale bar + north arrow + attribution (no location markers, per client preference), JPG download, optional standalone Word document (Facility Overview attachment), cached per site (IndexedDB) and embedded as a Facility Overview page in the Photo Log docx (toggleable). Requires connectivity to generate; cached maps re-export offline.
 - Automatic + manual GPS coordinate capture per entry
 - Save & New workflow with site-name autocomplete (importable `.txt` site list); warns before saving an entry with no site name
 - Edit previously saved entries; saved list shows each entry's site name (amber "No site" warning when missing)

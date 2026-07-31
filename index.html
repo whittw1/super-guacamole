@@ -905,9 +905,6 @@ if ('serviceWorker' in navigator) {
     </div>
     <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
       <label style="font-size:13px;display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="smMarkers" checked onchange="generateSiteMap()"> Number entry locations
-      </label>
-      <label style="font-size:13px;display:flex;align-items:center;gap:6px;">
         <input type="checkbox" id="smIncludeLog" checked onchange="smIncludeLogChanged()"> Attach to Photo Log for this site
       </label>
     </div>
@@ -1947,7 +1944,7 @@ function resetPhotoSettings() {
 // ============================================================================
 // SITE MAP (satellite imagery, Esri World Imagery tiles)
 // ============================================================================
-let smState = { siteF:'__all__', dateF:'__all__', entries:[], zoom:18, siteTag:'', siteLabel:'', dataUrl:null, markers:0, generating:false };
+let smState = { siteF:'__all__', dateF:'__all__', entries:[], zoom:18, siteTag:'', siteLabel:'', dataUrl:null, generating:false };
 
 function smLonToX(lon, world) { return (lon + 180) / 360 * world; }
 function smLatToY(lat, world) {
@@ -2151,31 +2148,6 @@ async function generateSiteMap() {
     }
     await Promise.all(jobs);
 
-    // Numbered markers at entry GPS positions (numbers match export Entry #)
-    let markerCount = 0;
-    if (document.getElementById('smMarkers').checked) {
-      st.entries.forEach((e, i) => {
-        if (e.latitude == null || e.longitude == null) return;
-        const px = smLonToX(e.longitude, world) - left;
-        const py = smLatToY(e.latitude, world) - top;
-        if (px < -20 || px > W + 20 || py < -20 || py > H + 20) return;
-        ctx.beginPath();
-        ctx.arc(px, py, 15, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(37, 99, 235, 0.92)';
-        ctx.fill();
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = '#ffffff';
-        ctx.stroke();
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 15px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(i + 1), px, py + 0.5);
-        markerCount++;
-      });
-    }
-    st.markers = markerCount;
-
     // Scale bar (bottom-left)
     const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);
     const candidates = [25, 50, 100, 200, 500, 1000, 2000];
@@ -2223,12 +2195,12 @@ async function generateSiteMap() {
     if (st.siteTag) {
       savePhotoToDB('__sitemap__' + st.siteTag, dataUrlToUint8Array(dataUrl).buffer, 'image/jpeg').catch(() => {});
       setSiteMapMeta(st.siteTag, {
-        when: new Date().toISOString(), zoom: z, lat, lon, markers: markerCount,
+        when: new Date().toISOString(), zoom: z, lat, lon,
         includeInLog: document.getElementById('smIncludeLog').checked, site: st.siteLabel
       });
     }
 
-    smStatus('Zoom ' + z + ' • ' + markerCount + ' location' + (markerCount === 1 ? '' : 's') + ' marked' +
+    smStatus('Zoom ' + z +
       (failed > 0 ? ' • ' + failed + ' tiles failed to load - try a lower zoom' : '') +
       '. Drag to pan, +/- to zoom.', failed > 0);
   } catch(e) {
@@ -2262,7 +2234,7 @@ function downloadSiteMap() {
   document.body.removeChild(a);
   logExport({
     type: 'sitemap', filename: fname, site: st.siteF, date: st.dateF,
-    entries: st.entries.length, photos: 0, zoom: st.zoom, markers: st.markers
+    entries: st.entries.length, photos: 0, zoom: st.zoom
   });
   showToast('Site map saved: ' + fname);
 }
@@ -2357,14 +2329,6 @@ async function downloadSiteMapDoc() {
             altText: { title: 'Facility satellite view', description: 'Facility satellite view', name: 'Site Map' }
           })]
         }),
-        ...(st.markers > 0 ? [new D.Paragraph({
-          alignment: D.AlignmentType.CENTER,
-          spacing: { after: 40 },
-          children: [new D.TextRun({
-            text: 'Numbered markers correspond to entry numbers in the audit export.',
-            font: FONT, size: 18, color: DARK_TEXT
-          })]
-        })] : []),
         new D.Paragraph({
           alignment: D.AlignmentType.CENTER,
           spacing: { after: 20 },
@@ -2392,7 +2356,7 @@ async function downloadSiteMapDoc() {
     URL.revokeObjectURL(url);
     logExport({
       type: 'sitemap', filename: fname, site: st.siteF, date: st.dateF,
-      entries: st.entries.length, photos: 0, zoom: st.zoom, markers: st.markers
+      entries: st.entries.length, photos: 0, zoom: st.zoom
     });
     showToast('Site map document saved: ' + fname);
   } catch(e) {
@@ -2752,7 +2716,7 @@ async function generatePhotoLog() {
               alignment: docx.AlignmentType.CENTER,
               spacing: { after: 0 },
               children: [new docx.TextRun({
-                text: (smMeta.markers ? 'Numbered markers correspond to entry numbers. ' : '') + SITEMAP_ATTRIB,
+                text: SITEMAP_ATTRIB,
                 font: 'Arial', size: 14, italics: true, color: '5A6A7A'
               })]
             }),
@@ -3071,7 +3035,7 @@ function showExportLog() {
       const badge = r.type === 'photolog' ? 'Photo Log' : (r.type === 'sitemap' ? 'Site Map' : 'ZIP');
       const badgeCls = r.type === 'photolog' ? 'log-docx' : (r.type === 'sitemap' ? 'log-map' : '');
       const detail = r.type === 'sitemap'
-        ? `${escapeHtml(site)} • ${date} • zoom ${r.zoom || '?'} • ${r.markers || 0} location${(r.markers || 0) === 1 ? '' : 's'} marked`
+        ? `${escapeHtml(site)} • ${date} • zoom ${r.zoom || '?'}`
         : `${escapeHtml(site)} • ${date} • ${r.entries} entr${r.entries === 1 ? 'y' : 'ies'} • ${r.photos} photo${r.photos === 1 ? '' : 's'}${refs}`;
       return `
         <div class="export-log-item">
