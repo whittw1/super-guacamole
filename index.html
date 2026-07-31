@@ -367,6 +367,18 @@ if ('serviceWorker' in navigator) {
     border-radius: 4px;
     font-weight: 600;
   }
+  .photo-capture .heading-badge {
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    background: rgba(37, 99, 235, 0.85);
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
   .photo-capture .saved-badge {
     position: absolute;
     top: 4px;
@@ -582,7 +594,6 @@ if ('serviceWorker' in navigator) {
   }
   .export-log-type.log-docx { background: var(--success); }
   .export-log-type.log-map { background: #7c3aed; }
-  #smPreview { touch-action: none; cursor: grab; user-select: none; -webkit-user-drag: none; }
   .export-log-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
   @media (max-width: 640px) {
@@ -807,7 +818,6 @@ if ('serviceWorker' in navigator) {
     <div class="dialog-actions" style="flex-wrap:wrap;">
       <button class="btn btn-outline btn-sm" onclick="showExportLog()" title="View export history" style="margin-right:auto;padding:7px 10px;">&#128220;</button>
       <button class="btn btn-outline btn-sm" onclick="closeExportDialog()">Cancel</button>
-      <button class="btn btn-outline btn-sm" onclick="openSiteMapDialog()" title="Generate a satellite site map">&#128752; Site Map</button>
       <button class="btn btn-success btn-sm" onclick="runExport()">&#128230; Export ZIP</button>
       <button class="btn btn-accent btn-sm" onclick="generatePhotoLog()" title="Generate Appendix C.2 Photo Log (.docx)">&#128196; Photo Log</button>
     </div>
@@ -874,48 +884,6 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
-<!-- ── SITE MAP DIALOG ── -->
-<div class="dialog-overlay" id="siteMapOverlay" style="display:none;" onclick="if(event.target===this)closeSiteMapDialog()">
-  <div class="dialog" style="max-width:680px;">
-    <h3>&#128752; Satellite Site Map</h3>
-    <div id="smInfo" style="font-size:12px;color:var(--text-dim);margin-bottom:10px;"></div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <input type="text" id="smAddress" placeholder="Search address, e.g. 25600 S Chrisman Rd, Tracy CA"
-        style="flex:1;padding:9px 12px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;"
-        onkeydown="if(event.key==='Enter')smSearchAddress()">
-      <button class="btn btn-outline btn-sm" onclick="smSearchAddress()" style="flex-shrink:0;">&#128269; Find</button>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
-      <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;">
-        <label style="font-size:11px;font-weight:600;color:var(--text-label);text-transform:uppercase;letter-spacing:0.5px;">Center Latitude</label>
-        <input type="text" id="smLat" inputmode="decimal"
-          style="padding:8px 10px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;">
-      </div>
-      <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px;">
-        <label style="font-size:11px;font-weight:600;color:var(--text-label);text-transform:uppercase;letter-spacing:0.5px;">Center Longitude</label>
-        <input type="text" id="smLon" inputmode="decimal"
-          style="padding:8px 10px;background:var(--input-bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;">
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <button class="btn btn-outline btn-sm" onclick="smZoomBy(-1)" style="padding:8px 12px;">-</button>
-        <span style="font-size:13px;color:var(--text-dim);min-width:52px;text-align:center;">Zoom <strong id="smZoomLabel" style="color:var(--text);">18</strong></span>
-        <button class="btn btn-outline btn-sm" onclick="smZoomBy(1)" style="padding:8px 12px;">+</button>
-      </div>
-      <button class="btn btn-accent btn-sm" id="smUpdateBtn" onclick="generateSiteMap()">Update</button>
-    </div>
-    <div style="background:var(--photo-bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:180px;display:flex;align-items:center;justify-content:center;position:relative;">
-      <img id="smPreview" style="width:100%;display:none;" draggable="false">
-      <div id="smEmpty" style="font-size:13px;color:var(--text-dim);padding:24px;text-align:center;">Loading imagery...</div>
-    </div>
-    <div id="smStatus" style="font-size:12px;color:var(--text-dim);margin-top:8px;">Drag the map to pan. Use +/- to zoom.</div>
-    <div class="dialog-actions">
-      <button class="btn btn-outline btn-sm" onclick="closeSiteMapDialog()">Close</button>
-      <button class="btn btn-success btn-sm" id="smDownloadBtn" onclick="downloadSiteMap()" disabled>&#11015; Download JPG</button>
-      <button class="btn btn-accent btn-sm" id="smDocxBtn" onclick="downloadSiteMapDoc()" disabled title="Standalone Word document with the satellite view">&#128196; Word Doc</button>
-    </div>
-  </div>
-</div>
-
 <!-- ── PHOTO VIEWER DIALOG ── -->
 <div class="dialog-overlay" id="photoViewerOverlay" style="display:none;" onclick="if(event.target===this)closePhotoViewer()">
   <div class="dialog" style="max-width:560px;">
@@ -944,9 +912,6 @@ const LS_CURRENT = 'audit_current';
 const LS_PHOTOS  = 'audit_photo_settings';
 const LS_SITES   = 'audit_site_list';
 const LS_EXPORTS = 'audit_export_log';
-const SITEMAP_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const SITEMAP_W = 1280, SITEMAP_H = 960;
-const SITEMAP_ATTRIB = 'Imagery: Esri, Maxar, Earthstar Geographics & the GIS User Community';
 const IDB_NAME   = 'audit_photos_v1';
 
 // ============================================================================
@@ -988,7 +953,7 @@ function init() {
   // Regenerate any old low-res thumbnails from the stored full-res photos
   setTimeout(() => { upgradeThumbnails().catch(() => {}); }, 800);
 
-  // Clean up cached site-map data from the retired Photo Log embed feature
+  // Clean up cached data from the retired site-map feature (moved to DLA Site Notes)
   setTimeout(() => {
     try { localStorage.removeItem('audit_sitemap_meta'); } catch(e) {}
     openPhotoDB().then(db => {
@@ -1024,7 +989,6 @@ function init() {
   const inp = document.getElementById('refStart');
   if (inp) inp.addEventListener('input', updateRefPreview);
 
-  smWirePan();
 }
 
 // ============================================================================
@@ -1616,9 +1580,134 @@ function updateHeaderBadge() {
 }
 
 // ============================================================================
+// HEADING (compass) CAPTURE
+// ============================================================================
+// The magnetometer heading is sampled when the user taps a photo slot — the
+// page is suspended while the iOS camera is open, so tap time is the closest
+// observable moment to the shot. Workflow: point the device, then tap.
+let lastHeading       = null;   // { mag, acc, ts } — screen-corrected magnetic heading
+let pendingHeadings   = {};     // slotId -> snapshot taken at tap time
+let headingListenerOn = false;
+let headingPermAsked  = false;
+
+function startHeadingListener() {
+  if (headingListenerOn) return;
+  headingListenerOn = true;
+  window.addEventListener('deviceorientation', e => {
+    let mag = null, acc = null;
+    if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) {
+      mag = e.webkitCompassHeading;   // iOS: degrees from magnetic north
+      acc = (typeof e.webkitCompassAccuracy === 'number' && e.webkitCompassAccuracy >= 0)
+        ? e.webkitCompassAccuracy : null;
+    } else if (e.absolute === true && typeof e.alpha === 'number') {
+      mag = (360 - e.alpha) % 360;    // Android absolute-orientation fallback
+    }
+    if (mag == null) return;
+    // webkitCompassHeading is relative to the device's portrait top edge —
+    // compensate when the device is held in landscape.
+    const rot = (typeof window.orientation === 'number') ? window.orientation
+      : (screen.orientation && typeof screen.orientation.angle === 'number' ? -screen.orientation.angle : 0);
+    lastHeading = { mag: (mag + rot + 360) % 360, acc, ts: Date.now() };
+  }, true);
+}
+
+// iOS needs a user-gesture permission request; hook the first tap anywhere.
+function initHeadingCapture() {
+  if (headingPermAsked) return;
+  headingPermAsked = true;
+  try {
+    if (typeof DeviceOrientationEvent === 'undefined') return;
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission()
+        .then(state => { if (state === 'granted') startHeadingListener(); })
+        .catch(() => {});
+    } else {
+      startHeadingListener();
+    }
+  } catch(e) {}
+}
+document.addEventListener('click', initHeadingCapture, { once: true, capture: true });
+
+function snapshotHeading() {
+  if (!lastHeading || Date.now() - lastHeading.ts > 10000) return null;
+  return {
+    mag: Math.round(lastHeading.mag) % 360,
+    acc: lastHeading.acc != null ? Math.round(lastHeading.acc) : null
+  };
+}
+
+// Approximate magnetic declination for CONUS (WMM ~2025 epoch, East positive).
+// Bilinear interpolation over a coarse grid — good to about a degree, which is
+// well inside the magnetometer's own error.
+const DECL_LAT   = [25, 35, 45];
+const DECL_LON   = [-125, -115, -105, -95, -85, -75, -65];
+const DECL_TABLE = [
+  [10.5,  9.5, 7.5, 2.5, -3.0,  -8.0, -12.0],
+  [13.0, 11.0, 8.0, 3.0, -3.5,  -9.5, -14.0],
+  [15.8, 13.5, 9.5, 3.5, -4.5, -12.5, -17.5]
+];
+
+function declinationAt(lat, lon) {
+  const la = Math.min(Math.max(lat, DECL_LAT[0]), DECL_LAT[DECL_LAT.length - 1]);
+  const lo = Math.min(Math.max(lon, DECL_LON[0]), DECL_LON[DECL_LON.length - 1]);
+  let i = 0; while (i < DECL_LAT.length - 2 && la > DECL_LAT[i + 1]) i++;
+  let j = 0; while (j < DECL_LON.length - 2 && lo > DECL_LON[j + 1]) j++;
+  const fy = (la - DECL_LAT[i]) / (DECL_LAT[i + 1] - DECL_LAT[i]);
+  const fx = (lo - DECL_LON[j]) / (DECL_LON[j + 1] - DECL_LON[j]);
+  const d00 = DECL_TABLE[i][j],     d01 = DECL_TABLE[i][j + 1];
+  const d10 = DECL_TABLE[i + 1][j], d11 = DECL_TABLE[i + 1][j + 1];
+  return (d00 * (1 - fx) + d01 * fx) * (1 - fy) + (d10 * (1 - fx) + d11 * fx) * fy;
+}
+
+function trueHeadingFor(mag, lat, lon) {
+  if (mag == null) return null;
+  if (lat == null || lon == null) return null;
+  return (mag + declinationAt(lat, lon) + 360) % 360;
+}
+
+const CARDINALS8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+function cardinalFor(deg) {
+  return CARDINALS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
+function facingCardinal(hdgMag, lat, lon) {
+  const t = trueHeadingFor(hdgMag, lat, lon);
+  return cardinalFor(t != null ? t : hdgMag);
+}
+
+// Full label for captions/exports. Readings the compass itself distrusts
+// (accuracy worse than 50 deg) are suppressed rather than asserted; 30-50 deg
+// readings are marked approximate.
+function headingLabel(photoInfo, lat, lon) {
+  if (!photoInfo || photoInfo.hdgMag == null) return '';
+  if (photoInfo.hdgAcc != null && photoInfo.hdgAcc > 50) return '';
+  const t = trueHeadingFor(photoInfo.hdgMag, lat, lon);
+  const deg = t != null ? t : photoInfo.hdgMag;
+  const approx = (photoInfo.hdgAcc != null && photoInfo.hdgAcc > 30) ? '~' : '';
+  return 'Facing ' + approx + cardinalFor(deg) + ' (' + Math.round(deg) + (t != null ? '\u00B0)' : '\u00B0 mag)');
+}
+
+// Per-entry summary for the spreadsheet/CSV, e.g. "P1: NE; P3: ~S"
+function entryFacingSummary(e) {
+  const slots = Object.keys(e.photos || {}).sort((a, b) => {
+    const order = s => s === 'p_main' ? 0 : s === 'p_wide' ? 1 : 2 + parseInt(s.replace('p_extra_','') || 0);
+    return order(a) - order(b);
+  });
+  const parts = [];
+  slots.forEach((s, idx) => {
+    const lbl = headingLabel(e.photos[s], e.latitude, e.longitude);
+    if (lbl) parts.push('P' + (idx + 1) + ': ' + lbl.replace('Facing ', ''));
+  });
+  return parts.join('; ');
+}
+
+// ============================================================================
 // PHOTO HANDLING
 // ============================================================================
 function takePhoto(slotId) {
+  // Sample the compass at tap time — closest observable moment to the shot
+  pendingHeadings[slotId] = snapshotHeading();
+
   // Destroy and recreate the file input every time — most reliable fix for
   // iOS Safari silently ignoring .click() on reused file inputs after
   // Save & New or retake.
@@ -1766,12 +1855,18 @@ function handlePhoto(input, slotId) {
       tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height);
       const thumbnail = tc.toDataURL('image/jpeg', THUMB_QUALITY);
 
-      currentPhotos[slotId] = { timestamp: ts, thumbnail, thumbV: THUMB_VERSION, fileType: 'image/jpeg', dbKey };
+      const hdg = pendingHeadings[slotId] || null;
+      delete pendingHeadings[slotId];
+      currentPhotos[slotId] = Object.assign(
+        { timestamp: ts, thumbnail, thumbV: THUMB_VERSION, fileType: 'image/jpeg', dbKey },
+        hdg ? { hdgMag: hdg.mag, hdgAcc: hdg.acc } : {}
+      );
 
       const container = document.getElementById('photo_' + slotId);
       container.classList.add('has-photo');
-      container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
-      showToast(`${PHOTO_SLOT_NAMES[slotId]} photo saved (~${sizeKB} KB)`);
+      const hdgBadge = hdg ? `<span class="heading-badge">${facingCardinal(hdg.mag, currentGPS && currentGPS.latitude, currentGPS && currentGPS.longitude)}</span>` : '';
+      container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>${hdgBadge}`;
+      showToast(`${PHOTO_SLOT_NAMES[slotId] || 'Photo'} photo saved (~${sizeKB} KB)${hdg ? ' \u2022 Facing ' + facingCardinal(hdg.mag, currentGPS && currentGPS.latitude, currentGPS && currentGPS.longitude) : ''}`);
 
       // Auto-capture GPS with each photo (silent — no error toast if it fails)
       if (!currentGPS) {
@@ -1868,7 +1963,13 @@ async function viewEntryPhotos(index) {
     let src = info.dbKey ? await getFullPhotoSrc(info.dbKey) : null;
     if (src && src.startsWith('blob:')) viewerUrls.push(src);
     if (!src) src = info.thumbnail;
-    if (src) parts.push('<img src="' + src + '" style="width:100%;border-radius:8px;margin-bottom:10px;display:block;">');
+    if (src) {
+      const lbl = headingLabel(info, e.latitude, e.longitude);
+      parts.push('<div style="margin-bottom:12px;">' +
+        '<img src="' + src + '" style="width:100%;border-radius:8px;display:block;">' +
+        (lbl ? '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;text-align:center;">' + lbl + '</div>' : '') +
+        '</div>');
+    }
   }
   body.innerHTML = parts.length ? parts.join('') : '<div class="saved-empty">No photos stored for this entry.</div>';
 }
@@ -1946,389 +2047,6 @@ function resetPhotoSettings() {
   document.getElementById('qualityLabel').textContent = Math.round(PHOTO_DEFAULTS.quality * 100) + '%';
   document.getElementById('customResGroup').style.display = 'none';
   updateEstimates();
-}
-
-// ============================================================================
-// SITE MAP (satellite imagery, Esri World Imagery tiles)
-// ============================================================================
-let smState = { siteF:'__all__', dateF:'__all__', entries:[], zoom:18, siteTag:'', siteLabel:'', dataUrl:null, generating:false };
-
-function smLonToX(lon, world) { return (lon + 180) / 360 * world; }
-function smLatToY(lat, world) {
-  const s = Math.sin(lat * Math.PI / 180);
-  return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * world;
-}
-function smXToLon(x, world) { return x / world * 360 - 180; }
-function smYToLat(y, world) {
-  return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / world))) * 180 / Math.PI;
-}
-
-function smStatus(msg, warn) {
-  const el = document.getElementById('smStatus');
-  el.textContent = msg;
-  el.style.color = warn ? 'var(--warning)' : 'var(--text-dim)';
-}
-
-function smFitZoom(minLat, maxLat, minLon, maxLon) {
-  if (minLat === maxLat && minLon === maxLon) return 18;
-  for (let z = 19; z >= 13; z--) {
-    const world = 256 * Math.pow(2, z);
-    const px = Math.abs(smLonToX(maxLon, world) - smLonToX(minLon, world));
-    const py = Math.abs(smLatToY(minLat, world) - smLatToY(maxLat, world));
-    if (px <= SITEMAP_W - 160 && py <= SITEMAP_H - 160) return Math.min(z, 18);
-  }
-  return 14;
-}
-
-function openSiteMapDialog() {
-  const siteF = document.getElementById('exportSiteFilter').value;
-  const dateF = document.getElementById('exportDateFilter').value;
-  closeExportDialog();
-  const st = smState;
-  st.siteF = siteF; st.dateF = dateF;
-  st.entries = collectExportEntries(siteF, dateF);
-  st.dataUrl = null;
-  document.getElementById('smDownloadBtn').disabled = true;
-  document.getElementById('smDocxBtn').disabled = true;
-
-  const sites = [...new Set(st.entries.map(e => (e.siteName || '').trim()).filter(Boolean))];
-  st.siteLabel = (siteF !== '__all__' && siteF !== '__none__') ? siteF
-    : (sites.length === 1 ? sites[0] : (sites.length ? 'Multiple sites' : 'Facility'));
-  st.siteTag = (siteF !== '__all__' && siteF !== '__none__') ? safeSiteFile(siteF)
-    : (sites.length === 1 ? safeSiteFile(sites[0]) : '');
-
-  const gps = st.entries.filter(e => e.latitude != null && e.longitude != null);
-  document.getElementById('smInfo').textContent =
-    st.siteLabel + ' • ' + st.entries.length + (st.entries.length === 1 ? ' entry' : ' entries') +
-    ' • ' + gps.length + ' with GPS';
-
-  document.getElementById('smAddress').value = '';
-  const latEl = document.getElementById('smLat');
-  const lonEl = document.getElementById('smLon');
-  if (gps.length > 0) {
-    const lats = gps.map(e => e.latitude), lons = gps.map(e => e.longitude);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
-    latEl.value = ((minLat + maxLat) / 2).toFixed(6);
-    lonEl.value = ((minLon + maxLon) / 2).toFixed(6);
-    st.zoom = smFitZoom(minLat, maxLat, minLon, maxLon);
-  } else {
-    latEl.value = ''; lonEl.value = '';
-  }
-  document.getElementById('smZoomLabel').textContent = st.zoom;
-
-  document.getElementById('smPreview').style.display = 'none';
-  document.getElementById('smEmpty').style.display = 'block';
-  document.getElementById('siteMapOverlay').style.display = 'flex';
-
-  if (latEl.value) generateSiteMap();
-  else {
-    document.getElementById('smEmpty').textContent = 'No GPS points in the selected entries. Search an address above or enter coordinates.';
-    smStatus('Search an address or type a center latitude/longitude, then tap Update.');
-  }
-}
-
-function closeSiteMapDialog() {
-  document.getElementById('siteMapOverlay').style.display = 'none';
-}
-
-function smZoomBy(d) {
-  smState.zoom = Math.max(14, Math.min(19, smState.zoom + d));
-  document.getElementById('smZoomLabel').textContent = smState.zoom;
-  generateSiteMap();
-}
-
-async function smSearchAddress() {
-  const q = document.getElementById('smAddress').value.trim();
-  if (!q) return;
-  smStatus('Searching address...');
-  try {
-    const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
-    const js = await resp.json();
-    if (!js || !js.length) { smStatus('Address not found - try adding city and state', true); return; }
-    document.getElementById('smLat').value = parseFloat(js[0].lat).toFixed(6);
-    document.getElementById('smLon').value = parseFloat(js[0].lon).toFixed(6);
-    if (smState.zoom < 16) {
-      smState.zoom = 17;
-      document.getElementById('smZoomLabel').textContent = smState.zoom;
-    }
-    generateSiteMap();
-  } catch(e) {
-    smStatus('Address lookup failed - check connection', true);
-  }
-}
-
-// Drag the preview image to pan the map center
-function smWirePan() {
-  const img = document.getElementById('smPreview');
-  if (!img) return;
-  let drag = null;
-  img.addEventListener('pointerdown', ev => {
-    drag = { x: ev.clientX, y: ev.clientY };
-    try { img.setPointerCapture(ev.pointerId); } catch(e) {}
-    ev.preventDefault();
-  });
-  img.addEventListener('pointermove', ev => { if (drag) ev.preventDefault(); });
-  img.addEventListener('pointerup', ev => {
-    if (!drag) return;
-    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
-    drag = null;
-    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-    const lat = parseFloat(document.getElementById('smLat').value);
-    const lon = parseFloat(document.getElementById('smLon').value);
-    if (!isFinite(lat) || !isFinite(lon)) return;
-    const scale = SITEMAP_W / img.clientWidth;
-    const world = 256 * Math.pow(2, smState.zoom);
-    const nx = smLonToX(lon, world) - dx * scale;
-    const ny = smLatToY(lat, world) - dy * scale;
-    document.getElementById('smLat').value = smYToLat(ny, world).toFixed(6);
-    document.getElementById('smLon').value = smXToLon(nx, world).toFixed(6);
-    generateSiteMap();
-  });
-}
-
-async function generateSiteMap() {
-  const st = smState;
-  if (st.generating) return;
-  const lat = parseFloat(document.getElementById('smLat').value);
-  const lon = parseFloat(document.getElementById('smLon').value);
-  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 85 || Math.abs(lon) > 180) {
-    smStatus('Enter a valid center latitude/longitude', true);
-    return;
-  }
-  st.generating = true;
-  document.getElementById('smUpdateBtn').disabled = true;
-  smStatus('Loading imagery...');
-
-  try {
-    const z = st.zoom;
-    const world = 256 * Math.pow(2, z);
-    const W = SITEMAP_W, H = SITEMAP_H;
-    const left = smLonToX(lon, world) - W / 2;
-    const top  = smLatToY(lat, world) - H / 2;
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#dfe6ee'; ctx.fillRect(0, 0, W, H);
-
-    const nTiles = Math.pow(2, z);
-    const t0x = Math.floor(left / 256), t0y = Math.floor(top / 256);
-    const t1x = Math.floor((left + W - 1) / 256), t1y = Math.floor((top + H - 1) / 256);
-    let failed = 0;
-    const jobs = [];
-    for (let tx = t0x; tx <= t1x; tx++) {
-      for (let ty = t0y; ty <= t1y; ty++) {
-        if (ty < 0 || ty >= nTiles) continue;
-        const wx = ((tx % nTiles) + nTiles) % nTiles;
-        const url = SITEMAP_TILE_URL.replace('{z}', z).replace('{y}', ty).replace('{x}', wx);
-        const ox = Math.round(tx * 256 - left), oy = Math.round(ty * 256 - top);
-        jobs.push(new Promise(res => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => { ctx.drawImage(img, ox, oy); res(); };
-          img.onerror = () => { failed++; res(); };
-          img.src = url;
-        }));
-      }
-    }
-    await Promise.all(jobs);
-
-    // Scale bar (bottom-left)
-    const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);
-    const candidates = [25, 50, 100, 200, 500, 1000, 2000];
-    let barM = candidates[0];
-    for (const c of candidates) { if (c / mpp >= 70 && c / mpp <= 220) { barM = c; break; } barM = c; }
-    const barPx = Math.round(barM / mpp);
-    const bx = 18, by = H - 44;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(bx - 8, by - 22, barPx + 16, 36);
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + barPx, by); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx, by + 6); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx + barPx, by - 6); ctx.lineTo(bx + barPx, by + 6); ctx.stroke();
-    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText(barM >= 1000 ? (barM / 1000) + ' km' : barM + ' m', bx + barPx / 2, by - 6);
-
-    // North arrow (top-right)
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(W - 52, 14, 38, 46);
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(W - 33, 20); ctx.lineTo(W - 26, 40); ctx.lineTo(W - 33, 35); ctx.lineTo(W - 40, 40);
-    ctx.closePath(); ctx.fill();
-    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('N', W - 33, 43);
-
-    // Attribution bar (bottom)
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, H - 24, W, 24);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(SITEMAP_ATTRIB + '  •  ' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '  •  ' + new Date().toLocaleDateString(), 10, H - 12);
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    st.dataUrl = dataUrl;
-    const prev = document.getElementById('smPreview');
-    prev.src = dataUrl;
-    prev.style.display = 'block';
-    document.getElementById('smEmpty').style.display = 'none';
-    document.getElementById('smDownloadBtn').disabled = false;
-    document.getElementById('smDocxBtn').disabled = false;
-
-    smStatus('Zoom ' + z +
-      (failed > 0 ? ' • ' + failed + ' tiles failed to load - try a lower zoom' : '') +
-      '. Drag to pan, +/- to zoom.', failed > 0);
-  } catch(e) {
-    console.error('Site map error:', e);
-    smStatus('Could not build the map - check connection and try again', true);
-  } finally {
-    st.generating = false;
-    document.getElementById('smUpdateBtn').disabled = false;
-  }
-}
-
-function downloadSiteMap() {
-  const st = smState;
-  if (!st.dataUrl) return;
-  const fname = 'Site_Map_' + (st.siteTag ? st.siteTag + '_' : '') + datestamp() + '.jpg';
-  const a = document.createElement('a');
-  a.href = st.dataUrl;
-  a.download = fname;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  logExport({
-    type: 'sitemap', filename: fname, site: st.siteF, date: st.dateF,
-    entries: st.entries.length, photos: 0, zoom: st.zoom
-  });
-  showToast('Site map saved: ' + fname);
-}
-
-// Standalone Word document with the satellite view (optional report attachment)
-async function downloadSiteMapDoc() {
-  const st = smState;
-  if (!st.dataUrl) return;
-  if (typeof docx === 'undefined') { showToast('docx library not loaded - check connection', true); return; }
-  showToast('Building map document...');
-
-  const D = docx;
-  const FONT = 'Arial';
-  const NAVY = '1B3A5C', GRAY_TEXT = '5A6A7A', BLUE_LINE = '2E75B6', DARK_TEXT = '1A1A1A';
-  const TBL_W = 10080;
-  const noBorder  = { style: D.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
-  const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
-
-  const banner = new D.Table({
-    width: { size: TBL_W, type: D.WidthType.DXA },
-    columnWidths: [TBL_W],
-    borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder,
-               insideH: noBorder, insideV: noBorder },
-    rows: [new D.TableRow({
-      children: [new D.TableCell({
-        width: { size: TBL_W, type: D.WidthType.DXA },
-        borders: noBorders,
-        shading: { fill: NAVY, type: D.ShadingType.CLEAR },
-        margins: { top: 160, left: 200, bottom: 160, right: 200 },
-        children: [
-          new D.Paragraph({
-            spacing: { before: 0, after: 0 },
-            alignment: D.AlignmentType.CENTER,
-            children: [new D.TextRun({ text: 'FACILITY OVERVIEW', font: FONT, bold: true, color: 'FFFFFF', size: 36 })]
-          }),
-          new D.Paragraph({
-            spacing: { before: 60, after: 0 },
-            alignment: D.AlignmentType.CENTER,
-            children: [new D.TextRun({ text: 'Satellite Site View', font: FONT, color: 'F2F6FA', size: 28 })]
-          }),
-          ...(st.siteLabel && st.siteLabel !== 'Facility' ? [new D.Paragraph({
-            spacing: { before: 40, after: 0 },
-            alignment: D.AlignmentType.CENTER,
-            children: [new D.TextRun({ text: st.siteLabel, font: FONT, bold: true, color: 'DCE6F2', size: 22 })]
-          })] : [])
-        ]
-      })]
-    })]
-  });
-
-  const divider = new D.Paragraph({
-    spacing: { before: 0, after: 240 },
-    border: { bottom: { style: D.BorderStyle.SINGLE, size: 8, color: BLUE_LINE, space: 1 } }
-  });
-
-  const lat = parseFloat(document.getElementById('smLat').value);
-  const lon = parseFloat(document.getElementById('smLon').value);
-  const coordLine = (isFinite(lat) && isFinite(lon))
-    ? 'Center: ' + lat.toFixed(6) + ', ' + lon.toFixed(6) + '  |  Zoom ' + st.zoom + '  |  '
-    : '';
-
-  const doc = new D.Document({
-    sections: [{
-      properties: {
-        page: {
-          size: { width: 12240, height: 15840 },
-          margin: { top: 1080, right: 1080, bottom: 1080, left: 1080, header: 708, footer: 708 }
-        }
-      },
-      headers: {
-        default: new D.Header({
-          children: [new D.Paragraph({
-            spacing: { after: 0 },
-            alignment: D.AlignmentType.RIGHT,
-            border: { bottom: { style: D.BorderStyle.SINGLE, size: 4, color: BLUE_LINE, space: 4 } },
-            children: [new D.TextRun({
-              text: (st.siteLabel || 'Site') + ' - Facility Overview',
-              font: FONT, italics: true, color: GRAY_TEXT, size: 16
-            })]
-          })]
-        })
-      },
-      children: [
-        banner, divider,
-        new D.Paragraph({
-          alignment: D.AlignmentType.CENTER,
-          spacing: { before: 120, after: 80 },
-          children: [new D.ImageRun({
-            type: 'jpg',
-            data: dataUrlToUint8Array(st.dataUrl),
-            transformation: { width: 660, height: 495 },
-            altText: { title: 'Facility satellite view', description: 'Facility satellite view', name: 'Site Map' }
-          })]
-        }),
-        new D.Paragraph({
-          alignment: D.AlignmentType.CENTER,
-          spacing: { after: 20 },
-          children: [new D.TextRun({
-            text: coordLine + 'Generated ' + new Date().toLocaleDateString(),
-            font: FONT, size: 16, italics: true, color: GRAY_TEXT
-          })]
-        }),
-        new D.Paragraph({
-          alignment: D.AlignmentType.CENTER,
-          spacing: { after: 0 },
-          children: [new D.TextRun({ text: SITEMAP_ATTRIB, font: FONT, size: 14, italics: true, color: GRAY_TEXT })]
-        })
-      ]
-    }]
-  });
-
-  try {
-    const blob  = await D.Packer.toBlob(doc);
-    const url   = URL.createObjectURL(blob);
-    const a     = document.createElement('a');
-    const fname = 'Site_Map_' + (st.siteTag ? st.siteTag + '_' : '') + datestamp() + '.docx';
-    a.href = url; a.download = fname;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    logExport({
-      type: 'sitemap', filename: fname, site: st.siteF, date: st.dateF,
-      entries: st.entries.length, photos: 0, zoom: st.zoom
-    });
-    showToast('Site map document saved: ' + fname);
-  } catch(e) {
-    console.error('Site map doc error:', e);
-    showToast('Map document export error - try again', true);
-  }
 }
 
 // ============================================================================
@@ -2494,7 +2212,7 @@ async function runExport() {
   const fmtCoord = v => v != null ? Number(v).toFixed(6) : '';
   const fmtAcc   = v => v != null ? String(v) : '';
   const photoHeaders = Array.from({length: maxPhotos}, (_, i) => `Photo ${i+1}`);
-  let csv = ['Entry #','Site','Location','Latitude','Longitude','GPS Accuracy (m)','Details','Timestamp',...photoHeaders].join(',') + '\n';
+  let csv = ['Entry #','Site','Location','Latitude','Longitude','GPS Accuracy (m)','Photo Facing','Details','Timestamp',...photoHeaders].join(',') + '\n';
   allEntries.forEach((e, i) => {
     const m = entryMaps[i];
     const sortedSlots = Object.keys(m).sort((a,b) => {
@@ -2505,6 +2223,7 @@ async function runExport() {
     csv += [
       i + 1, quote(e.siteName), quote(e.location),
       quote(fmtCoord(e.latitude)), quote(fmtCoord(e.longitude)), quote(fmtAcc(e.gpsAccuracy)),
+      quote(entryFacingSummary(e)),
       quote(e.details),
       quote(e.timestamp ? new Date(e.timestamp).toLocaleString() : ''),
       ...photoVals
@@ -2514,7 +2233,7 @@ async function runExport() {
   // PASS 3 — XLSX (dynamic photo columns)
   const xlsxPhotoCols = Array.from({length: maxPhotos}, (_, i) => `Photo ${i+1}`);
   const aoa = [
-    ['Entry #', 'Site', 'Location', 'Latitude', 'Longitude', 'GPS Accuracy (m)', 'Details', 'Timestamp', ...xlsxPhotoCols],
+    ['Entry #', 'Site', 'Location', 'Latitude', 'Longitude', 'GPS Accuracy (m)', 'Photo Facing', 'Details', 'Timestamp', ...xlsxPhotoCols],
     ...allEntries.map((e, i) => {
       const m = entryMaps[i];
       const sortedSlots = Object.keys(m).sort((a,b) => {
@@ -2525,6 +2244,7 @@ async function runExport() {
       return [
         i + 1, e.siteName || '', e.location || '',
         e.latitude != null ? e.latitude : '', e.longitude != null ? e.longitude : '', e.gpsAccuracy != null ? e.gpsAccuracy : '',
+        entryFacingSummary(e),
         e.details || '',
         e.timestamp ? new Date(e.timestamp).toLocaleString() : '',
         ...photoVals
@@ -2533,7 +2253,7 @@ async function runExport() {
   ];
   const photoCols = Array.from({length: maxPhotos}, () => ({wch:14}));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:8},{wch:28},{wch:30},{wch:14},{wch:14},{wch:16},{wch:50},{wch:20},...photoCols];
+  ws['!cols'] = [{wch:8},{wch:28},{wch:30},{wch:14},{wch:14},{wch:16},{wch:24},{wch:50},{wch:20},...photoCols];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Audit Entries');
   const zipSiteTag = (siteF !== '__all__' && siteF !== '__none__') ? safeSiteFile(siteF) : '';
@@ -2645,6 +2365,8 @@ async function generatePhotoLog() {
             const lonDir = entry.longitude < 0 ? 'W' : 'E';
             gpsLine = `GPS: ${entry.latitude.toFixed(6)}\u00B0N, ${Math.abs(entry.longitude).toFixed(6)}\u00B0${lonDir}`;
           }
+          const facing = headingLabel(info, entry.latitude, entry.longitude);
+          if (facing) gpsLine = gpsLine ? gpsLine + '   \u2022   ' + facing : facing;
           photoItems.push({ bytes: pd.bytes, type: pd.type, caption, siteLine, gpsLine, ref });
         }
       }

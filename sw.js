@@ -1,4 +1,4 @@
-const CACHE_NAME = 'audit-collector-v3.4';
+const CACHE_NAME = 'audit-collector-v3.6';
 const URLS_TO_CACHE = [
   './',
   './index.html',

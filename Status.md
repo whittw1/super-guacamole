@@ -4,7 +4,7 @@
 
 ## Status: ✅ Fully Functional (Deployed & In Use)
 
-The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.7 (2026-07-31): satellite Site Map export (Esri World Imagery, address search, drag-to-pan) delivered as a separate JPG or standalone Word document only, plus a Photo Log fix keeping captions on the same page as their photos. Per client preference, the site map has no location markers and is not embedded in the Photo Log. v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations.
+The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.9 (2026-07-31): compass facing direction captured per photo (magnetometer sampled when the photo slot is tapped, corrected to true north via a CONUS declination table, 8-point cardinal labels, low-confidence readings suppressed) — shown on slot badges, the photo viewer, Photo Log captions, and a Photo Facing column in CSV/XLSX. v2.8 moved the satellite Site Map to the DLA Site Notes app (see dla-site-notes/SITE-MAP-INSTRUCTIONS.md). v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations.
 
 ## Summary
 
@@ -14,8 +14,8 @@ Audit Photo Collector is a mobile-first Progressive Web App built for HGS Engine
 
 - Photo capture with client-side resizing (720p–1440p presets, quality slider)
 - Readable previews: 240px stored thumbnails, form slots hydrate to the full-resolution photo, saved-list thumbnails are tap-to-view (full-size lightbox); old low-res thumbnails regenerate automatically from stored photos on launch
-- Satellite Site Map export (Esri World Imagery tiles, no API key): auto-centers on the filtered entries' GPS points, address search (OSM Nominatim), drag-to-pan / zoom / editable coordinates, scale bar + north arrow + attribution (no location markers, per client preference), JPG download or standalone Word document (Facility Overview attachment) — kept separate from the Photo Log. Requires connectivity to generate.
-- Automatic + manual GPS coordinate capture per entry
+- Automatic + manual GPS coordinate capture per entry (an external Bluetooth GPS receiver improves accuracy automatically via iOS Location Services)
+- Compass facing direction per photo: magnetometer heading sampled at photo-slot tap (workflow: point the device, then tap), landscape-corrected, converted magnetic-to-true with an embedded CONUS declination grid; 8-point cardinal + degrees in Photo Log captions, viewer, and a Photo Facing export column; readings with compass-reported error over 50 deg are suppressed, 30-50 deg marked "~". Requires one iOS motion-permission tap; accuracy is approximate (typically 10-25 deg, worse near steel structures)
 - Save & New workflow with site-name autocomplete (importable `.txt` site list); warns before saving an entry with no site name
 - Edit previously saved entries; saved list shows each entry's site name (amber "No site" warning when missing)
 - Site + date filters on the saved list and in the Export dialog (both ZIP and Photo Log exports respect them)
