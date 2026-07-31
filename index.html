@@ -903,11 +903,6 @@ if ('serviceWorker' in navigator) {
       </div>
       <button class="btn btn-accent btn-sm" id="smUpdateBtn" onclick="generateSiteMap()">Update</button>
     </div>
-    <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
-      <label style="font-size:13px;display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="smIncludeLog" checked onchange="smIncludeLogChanged()"> Attach to Photo Log for this site
-      </label>
-    </div>
     <div style="background:var(--photo-bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:180px;display:flex;align-items:center;justify-content:center;position:relative;">
       <img id="smPreview" style="width:100%;display:none;" draggable="false">
       <div id="smEmpty" style="font-size:13px;color:var(--text-dim);padding:24px;text-align:center;">Loading imagery...</div>
@@ -949,7 +944,6 @@ const LS_CURRENT = 'audit_current';
 const LS_PHOTOS  = 'audit_photo_settings';
 const LS_SITES   = 'audit_site_list';
 const LS_EXPORTS = 'audit_export_log';
-const LS_SITEMAPS = 'audit_sitemap_meta';
 const SITEMAP_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const SITEMAP_W = 1280, SITEMAP_H = 960;
 const SITEMAP_ATTRIB = 'Imagery: Esri, Maxar, Earthstar Geographics & the GIS User Community';
@@ -993,6 +987,19 @@ function init() {
 
   // Regenerate any old low-res thumbnails from the stored full-res photos
   setTimeout(() => { upgradeThumbnails().catch(() => {}); }, 800);
+
+  // Clean up cached site-map data from the retired Photo Log embed feature
+  setTimeout(() => {
+    try { localStorage.removeItem('audit_sitemap_meta'); } catch(e) {}
+    openPhotoDB().then(db => {
+      const tx = db.transaction('photos', 'readwrite');
+      const store = tx.objectStore('photos');
+      const req = store.getAllKeys();
+      req.onsuccess = () => {
+        req.result.filter(k => String(k).startsWith('__sitemap__')).forEach(k => store.delete(k));
+      };
+    }).catch(() => {});
+  }, 1500);
 
   // Load saved site list
   try {
@@ -1956,20 +1963,6 @@ function smYToLat(y, world) {
   return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / world))) * 180 / Math.PI;
 }
 
-function getSiteMapMeta() {
-  try {
-    const m = localStorage.getItem(LS_SITEMAPS);
-    if (m) return JSON.parse(m);
-  } catch(e) {}
-  return {};
-}
-
-function setSiteMapMeta(tag, meta) {
-  const all = getSiteMapMeta();
-  all[tag] = meta;
-  try { localStorage.setItem(LS_SITEMAPS, JSON.stringify(all)); } catch(e) {}
-}
-
 function smStatus(msg, warn) {
   const el = document.getElementById('smStatus');
   el.textContent = msg;
@@ -2008,14 +2001,6 @@ function openSiteMapDialog() {
   document.getElementById('smInfo').textContent =
     st.siteLabel + ' • ' + st.entries.length + (st.entries.length === 1 ? ' entry' : ' entries') +
     ' • ' + gps.length + ' with GPS';
-
-  const inc = document.getElementById('smIncludeLog');
-  inc.disabled = !st.siteTag;
-  if (!st.siteTag) inc.checked = false;
-  else {
-    const meta = getSiteMapMeta()[st.siteTag];
-    inc.checked = meta ? meta.includeInLog !== false : true;
-  }
 
   document.getElementById('smAddress').value = '';
   const latEl = document.getElementById('smLat');
@@ -2191,15 +2176,6 @@ async function generateSiteMap() {
     document.getElementById('smDownloadBtn').disabled = false;
     document.getElementById('smDocxBtn').disabled = false;
 
-    // Cache for offline re-export and Photo Log embedding
-    if (st.siteTag) {
-      savePhotoToDB('__sitemap__' + st.siteTag, dataUrlToUint8Array(dataUrl).buffer, 'image/jpeg').catch(() => {});
-      setSiteMapMeta(st.siteTag, {
-        when: new Date().toISOString(), zoom: z, lat, lon,
-        includeInLog: document.getElementById('smIncludeLog').checked, site: st.siteLabel
-      });
-    }
-
     smStatus('Zoom ' + z +
       (failed > 0 ? ' • ' + failed + ' tiles failed to load - try a lower zoom' : '') +
       '. Drag to pan, +/- to zoom.', failed > 0);
@@ -2209,16 +2185,6 @@ async function generateSiteMap() {
   } finally {
     st.generating = false;
     document.getElementById('smUpdateBtn').disabled = false;
-  }
-}
-
-function smIncludeLogChanged() {
-  const st = smState;
-  if (!st.siteTag) return;
-  const all = getSiteMapMeta();
-  if (all[st.siteTag]) {
-    all[st.siteTag].includeInLog = document.getElementById('smIncludeLog').checked;
-    try { localStorage.setItem(LS_SITEMAPS, JSON.stringify(all)); } catch(e) {}
   }
 }
 
@@ -2687,45 +2653,6 @@ async function generatePhotoLog() {
 
   if (photoItems.length === 0) { showToast('No photos to export', true); return; }
 
-  // Facility Overview page: cached satellite site map for this site (if any)
-  const siteMapEls = [];
-  try {
-    if (bannerSite) {
-      const smTag = safeSiteFile(bannerSite);
-      const smMeta = getSiteMapMeta()[smTag];
-      if (smMeta && smMeta.includeInLog !== false) {
-        const smRec = await getPhotoFromDB('__sitemap__' + smTag);
-        if (smRec && smRec.data) {
-          siteMapEls.push(
-            new docx.Paragraph({
-              spacing: { before: 120, after: 80 },
-              alignment: docx.AlignmentType.CENTER,
-              children: [new docx.TextRun({ text: 'Facility Overview – Satellite View', font: 'Arial', bold: true, color: '1B3A5C', size: 26 })]
-            }),
-            new docx.Paragraph({
-              alignment: docx.AlignmentType.CENTER,
-              spacing: { after: 40 },
-              children: [new docx.ImageRun({
-                type: 'jpg',
-                data: new Uint8Array(smRec.data),
-                transformation: { width: 648, height: 486 },
-                altText: { title: 'Facility satellite view', description: 'Facility satellite view', name: 'Site Map' }
-              })]
-            }),
-            new docx.Paragraph({
-              alignment: docx.AlignmentType.CENTER,
-              spacing: { after: 0 },
-              children: [new docx.TextRun({
-                text: SITEMAP_ATTRIB,
-                font: 'Arial', size: 14, italics: true, color: '5A6A7A'
-              })]
-            }),
-            new docx.Paragraph({ children: [new docx.PageBreak()] })
-          );
-        }
-      }
-    }
-  } catch(e) { console.error('Site map embed error:', e); }
 
   // -- Template constants matching Appendix C.2 --
   const IMG_SIZE  = 2095500;     // EMU (~2.3 inches square)
@@ -2975,7 +2902,7 @@ async function generatePhotoLog() {
           })]
         })
       },
-      children: [titleBanner, divider, ...siteMapEls, photoGrid]
+      children: [titleBanner, divider, photoGrid]
     }]
   });
 
