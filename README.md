@@ -19,7 +19,7 @@ A mobile-first Progressive Web App (PWA) for collecting geotagged photos during 
 | **Site & date filtering** | Filter the saved list and every export by site and date. Batch operations on the filtered set: **Set Site** (bulk-assign a site name) and **Delete** (removes entries *and* their stored photos). |
 | **Site list import** | Load a `.txt` file of site names for quick autocomplete on the Site/Session field. |
 | **Save & New** | Saves the current entry and immediately resets the form for the next location. Auto-fills site name from the previous entry. |
-| **Readable previews** | 240 px stored thumbnails; form slots hydrate to the full-resolution photo from IndexedDB; tapping a saved-list thumbnail opens a full-size viewer (with facing captions). Old low-res thumbnails regenerate automatically on launch. |
+| **Readable previews** | 240 px stored thumbnails; form slots hydrate to the full-resolution photo from IndexedDB. Tapping a **filled form slot** or a saved-list thumbnail opens a full-size viewer with the facing caption — the form-slot viewer includes a Retake button (empty slots capture on tap). Old low-res thumbnails regenerate automatically on launch. |
 | **ZIP export** | Photos renamed with sequential reference numbers plus the site name (`P0001_Site_Name.jpg`), bundled with an XLSX report and CSV (including a **Photo Facing** column). ZIP/report/CSV filenames carry the site when a single site is exported. |
 | **Photo Log export** | Formatted Word document (`.docx`) — photo cards with sequential reference numbers, location, details, "Site:" line, GPS coordinates, and per-photo facing direction. Photo+caption pairs are marked `cantSplit` so captions never break onto the next page. Banner/header/filename show the site when the export covers one site. |
 | **Export log** | Every ZIP / Photo Log export is recorded (timestamp, type, site/date filter, entry & photo counts, reference range, filename) — viewable from the Export dialog (📜) or the phone overflow menu, capped at 200 records. |
@@ -94,7 +94,7 @@ Each saved entry contains:
 
 ## Service Worker Strategy
 
-- **Cache version:** `audit-collector-v3.6` (bump on every `index.html` release to force refresh)
+- **Cache version:** `audit-collector-v3.7` (bump on every `index.html` release to force refresh)
 - **HTML:** Network-first — always tries to fetch latest, falls back to cache offline
 - **JS/assets:** Cache-first — served from cache, falls back to network
 - `self.skipWaiting()` + `clients.claim()` ensures immediate activation
@@ -103,6 +103,7 @@ Each saved entry contains:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v2.10 | 2026-07-31 | Tap a filled photo slot to view the photo full size (verification in the field); Retake moved into the viewer |
 | v2.9 | 2026-07-31 | Compass facing direction per photo (magnetometer at slot-tap, true-north conversion, cardinal labels, low-confidence suppression); Photo Facing column in CSV/XLSX |
 | v2.8 | 2026-07-31 | Satellite Site Map moved out to the DLA Site Notes app (port spec in that repo); export-log history for old map exports still renders |
 | v2.7 | 2026-07-31 | Site map no longer embedded in the Photo Log — separate JPG/Word deliverables only |

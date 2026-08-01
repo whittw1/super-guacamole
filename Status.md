@@ -4,7 +4,7 @@
 
 ## Status: ✅ Fully Functional (Deployed & In Use)
 
-The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.9 (2026-07-31): compass facing direction captured per photo (magnetometer sampled when the photo slot is tapped, corrected to true north via a CONUS declination table, 8-point cardinal labels, low-confidence readings suppressed) — shown on slot badges, the photo viewer, Photo Log captions, and a Photo Facing column in CSV/XLSX. v2.8 moved the satellite Site Map to the DLA Site Notes app (see dla-site-notes/SITE-MAP-INSTRUCTIONS.md). v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations.
+The app is stable, deployed to Azure Static Web Apps, and suitable for field use. Current version is v2.10 (2026-07-31): tapping a filled photo slot now opens the photo full size for field verification (Retake moved into the viewer; empty slots still capture on tap). v2.9 added compass facing direction captured per photo (magnetometer sampled when the photo slot is tapped, corrected to true north via a CONUS declination table, 8-point cardinal labels, low-confidence readings suppressed) — shown on slot badges, the photo viewer, Photo Log captions, and a Photo Facing column in CSV/XLSX. v2.8 moved the satellite Site Map to the DLA Site Notes app (see dla-site-notes/SITE-MAP-INSTRUCTIONS.md). v2.4 added readable thumbnails; v2.3 added site/date filtering, site-tagged exports, export log, and batch operations.
 
 ## Summary
 
@@ -13,7 +13,7 @@ Audit Photo Collector is a mobile-first Progressive Web App built for HGS Engine
 ## Capabilities
 
 - Photo capture with client-side resizing (720p–1440p presets, quality slider)
-- Readable previews: 240px stored thumbnails, form slots hydrate to the full-resolution photo, saved-list thumbnails are tap-to-view (full-size lightbox); old low-res thumbnails regenerate automatically from stored photos on launch
+- Readable previews: 240px stored thumbnails, form slots hydrate to the full-resolution photo, and both form slots and saved-list thumbnails are tap-to-view (full-size viewer with facing caption; form-slot viewer includes a Retake button); old low-res thumbnails regenerate automatically from stored photos on launch
 - Automatic + manual GPS coordinate capture per entry (an external Bluetooth GPS receiver improves accuracy automatically via iOS Location Services)
 - Compass facing direction per photo: magnetometer heading sampled at photo-slot tap (workflow: point the device, then tap), landscape-corrected, converted magnetic-to-true with an embedded CONUS declination grid; 8-point cardinal + degrees in Photo Log captions, viewer, and a Photo Facing export column; readings with compass-reported error over 50 deg are suppressed, 30-50 deg marked "~". Requires one iOS motion-permission tap; accuracy is approximate (typically 10-25 deg, worse near steel structures)
 - Save & New workflow with site-name autocomplete (importable `.txt` site list); warns before saving an entry with no site name

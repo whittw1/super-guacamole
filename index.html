@@ -742,7 +742,7 @@ if ('serviceWorker' in navigator) {
     <div class="photo-grid">
       <div class="photo-slot">
         <label>Photo 1</label>
-        <div class="photo-capture" onclick="takePhoto('p_main')" id="photo_p_main">
+        <div class="photo-capture" onclick="slotTapped('p_main')" id="photo_p_main">
           <span class="placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M9 2h6l1 3H8l1-3z"/></svg>
             Tap to capture
@@ -752,7 +752,7 @@ if ('serviceWorker' in navigator) {
       </div>
       <div class="photo-slot">
         <label>Photo 2</label>
-        <div class="photo-capture" onclick="takePhoto('p_wide')" id="photo_p_wide">
+        <div class="photo-capture" onclick="slotTapped('p_wide')" id="photo_p_wide">
           <span class="placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M9 2h6l1 3H8l1-3z"/></svg>
             Tap to capture
@@ -890,6 +890,7 @@ if ('serviceWorker' in navigator) {
     <h3 id="photoViewerTitle" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></h3>
     <div id="photoViewerBody" style="max-height:65vh;overflow-y:auto;"></div>
     <div class="dialog-actions">
+      <button class="btn btn-warning btn-sm" id="viewerRetakeBtn" style="display:none;margin-right:auto;" onclick="viewerRetake()">&#128247; Retake</button>
       <button class="btn btn-accent btn-sm" onclick="closePhotoViewer()">Close</button>
     </div>
   </div>
@@ -1125,7 +1126,7 @@ function addPhotoSlot() {
   wrapper.innerHTML = `
     <div class="photo-slot" style="grid-column:1/span 1;">
       <label>Photo ${num}</label>
-      <div class="photo-capture" onclick="takePhoto('${slotId}')" id="photo_${slotId}">
+      <div class="photo-capture" onclick="slotTapped('${slotId}')" id="photo_${slotId}">
         <span class="placeholder">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="5" width="18" height="14" rx="2"/>
@@ -1454,7 +1455,7 @@ function editEntry(index) {
     if (photo && photo.thumbnail) {
       currentPhotos[slot] = { ...photo };
       el.classList.add('has-photo');
-      el.innerHTML = `<img src="${photo.thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
+      el.innerHTML = `<img src="${photo.thumbnail}"><span class="retake-badge">View</span><span class="saved-badge">\u2713</span>`;
       hydrateSlotPreview(slot, photo);
     } else {
       el.classList.remove('has-photo');
@@ -1481,9 +1482,9 @@ function editEntry(index) {
       wrapper.innerHTML = `
         <div class="photo-slot" style="grid-column:1/span 1;">
           <label>Photo ${num}</label>
-          <div class="photo-capture ${photo && photo.thumbnail ? 'has-photo' : ''}" onclick="takePhoto('${slotId}')" id="photo_${slotId}">
+          <div class="photo-capture ${photo && photo.thumbnail ? 'has-photo' : ''}" onclick="slotTapped('${slotId}')" id="photo_${slotId}">
             ${photo && photo.thumbnail
-              ? `<img src="${photo.thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`
+              ? `<img src="${photo.thumbnail}"><span class="retake-badge">View</span><span class="saved-badge">\u2713</span>`
               : PH}
           </div>
           <input type="file" accept="image/*" capture="environment" id="file_${slotId}" onchange="handlePhoto(this,'${slotId}')">
@@ -1865,7 +1866,7 @@ function handlePhoto(input, slotId) {
       const container = document.getElementById('photo_' + slotId);
       container.classList.add('has-photo');
       const hdgBadge = hdg ? `<span class="heading-badge">${facingCardinal(hdg.mag, currentGPS && currentGPS.latitude, currentGPS && currentGPS.longitude)}</span>` : '';
-      container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>${hdgBadge}`;
+      container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">View</span><span class="saved-badge">\u2713</span>${hdgBadge}`;
       showToast(`${PHOTO_SLOT_NAMES[slotId] || 'Photo'} photo saved (~${sizeKB} KB)${hdg ? ' \u2022 Facing ' + facingCardinal(hdg.mag, currentGPS && currentGPS.latitude, currentGPS && currentGPS.longitude) : ''}`);
 
       // Auto-capture GPS with each photo (silent — no error toast if it fails)
@@ -1942,11 +1943,53 @@ async function upgradeThumbnails() {
   }
 }
 
+function slotDisplayName(slotId) {
+  if (PHOTO_SLOT_NAMES[slotId]) return PHOTO_SLOT_NAMES[slotId];
+  const i = extraPhotoSlots.indexOf(slotId);
+  return 'Photo ' + (i >= 0 ? 3 + i : '');
+}
+
+// Tap a filled form slot to view that photo full size; empty slots capture
+function slotTapped(slotId) {
+  if (currentPhotos[slotId] && currentPhotos[slotId].thumbnail) viewSlotPhoto(slotId);
+  else takePhoto(slotId);
+}
+
+let viewerRetakeSlot = null;
+async function viewSlotPhoto(slotId) {
+  const info = currentPhotos[slotId];
+  if (!info) return;
+  viewerRetakeSlot = slotId;
+  const loc = document.getElementById('entryLocation').value.trim();
+  document.getElementById('photoViewerTitle').textContent = slotDisplayName(slotId) + (loc ? ' — ' + loc : '');
+  const body = document.getElementById('photoViewerBody');
+  body.innerHTML = '<div class="saved-empty">Loading photo...</div>';
+  document.getElementById('viewerRetakeBtn').style.display = 'inline-block';
+  document.getElementById('photoViewerOverlay').style.display = 'flex';
+
+  let src = info.dbKey ? await getFullPhotoSrc(info.dbKey) : null;
+  if (src && src.startsWith('blob:')) viewerUrls.push(src);
+  if (!src) src = info.thumbnail;
+  const lbl = headingLabel(info, currentGPS && currentGPS.latitude, currentGPS && currentGPS.longitude);
+  body.innerHTML = src
+    ? '<img src="' + src + '" style="width:100%;border-radius:8px;display:block;">' +
+      (lbl ? '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;text-align:center;">' + lbl + '</div>' : '')
+    : '<div class="saved-empty">Photo not found in storage.</div>';
+}
+
+function viewerRetake() {
+  const slot = viewerRetakeSlot;
+  closePhotoViewer();
+  if (slot) takePhoto(slot);
+}
+
 // Tap a saved-list thumbnail to view the entry's photos full size
 let viewerUrls = [];
 async function viewEntryPhotos(index) {
   const e = savedEntries[index];
   if (!e || !e.photos) return;
+  viewerRetakeSlot = null;
+  document.getElementById('viewerRetakeBtn').style.display = 'none';
   const slots = Object.keys(e.photos).sort((a, b) => {
     const order = s => s === 'p_main' ? 0 : s === 'p_wide' ? 1 : 2 + parseInt(s.replace('p_extra_','') || 0);
     return order(a) - order(b);
@@ -1977,6 +2020,8 @@ async function viewEntryPhotos(index) {
 function closePhotoViewer() {
   viewerUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch(e) {} });
   viewerUrls = [];
+  viewerRetakeSlot = null;
+  document.getElementById('viewerRetakeBtn').style.display = 'none';
   document.getElementById('photoViewerOverlay').style.display = 'none';
 }
 
@@ -2950,9 +2995,9 @@ function loadAll() {
       wrapper.innerHTML = `
         <div class="photo-slot" style="grid-column:1/span 1;">
           <label>Photo ${num}</label>
-          <div class="photo-capture ${ph ? 'has-photo' : ''}" onclick="takePhoto('${slotId}')" id="photo_${slotId}">
+          <div class="photo-capture ${ph ? 'has-photo' : ''}" onclick="slotTapped('${slotId}')" id="photo_${slotId}">
             ${ph
-              ? `<img src="${ph}"><span class="retake-badge">Retake</span><span class="saved-badge">✓</span>`
+              ? `<img src="${ph}"><span class="retake-badge">View</span><span class="saved-badge">✓</span>`
               : `<span class="placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M9 2h6l1 3H8l1-3z"/></svg>Tap to capture</span>`}
           </div>
           <input type="file" accept="image/*" capture="environment" id="file_${slotId}" onchange="handlePhoto(this,'${slotId}')">
@@ -2977,7 +3022,7 @@ function loadAll() {
         const el = document.getElementById('photo_' + slot);
         if (el) {
           el.classList.add('has-photo');
-          el.innerHTML = `<img src="${currentPhotos[slot].thumbnail}"><span class="retake-badge">Retake</span><span class="saved-badge">\u2713</span>`;
+          el.innerHTML = `<img src="${currentPhotos[slot].thumbnail}"><span class="retake-badge">View</span><span class="saved-badge">\u2713</span>`;
           hydrateSlotPreview(slot, currentPhotos[slot]);
         }
       }
