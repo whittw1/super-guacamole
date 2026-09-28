@@ -929,6 +929,8 @@ let currentGPS     = null; // { latitude, longitude, accuracy } for current entr
 let editingIndex   = null; // index into savedEntries when editing; null = new entry mode
 let filterSite     = '__all__'; // saved-panel site filter ('__all__', '__none__', or a site name)
 let filterDate     = '__all__'; // saved-panel date filter ('__all__' or 'YYYY-MM-DD')
+let currentExportStamp = null;  // { id, at } when the unsaved form entry went out in a ZIP export
+const pendingPhotoSaves = new Set(); // photo info objects whose bytes are still being written
 
 // ============================================================================
 // INIT
@@ -1169,6 +1171,7 @@ function removePhotoSlot(slotId) {
   // Renumber remaining slot labels
   renumberExtraSlots();
   autoSaveCurrent();
+  updateIntegrityBadge();
 }
 
 function renumberExtraSlots() {
@@ -1194,6 +1197,7 @@ function saveEntryAndNew() {
     showToast('Add a location, details, or at least one photo first', true);
     return;
   }
+  if (!confirmPhotosSaved()) return;
 
   if (!document.getElementById('siteName').value.trim() &&
       !confirm('No Site / Session is set, so this entry will not be tied to a site.\n\nSave without a site name?')) {
@@ -1212,6 +1216,10 @@ function saveEntryAndNew() {
     timestamp: new Date().toISOString(),
     photos:    Object.assign({}, currentPhotos)
   };
+  if (currentExportStamp && currentExportStamp.id === entry.id &&
+      exportStampStillValid(entry.photos, currentExportStamp.at)) {
+    entry.exportedAt = currentExportStamp.at;
+  }
 
   savedEntries.push(entry);
   saveAll();
@@ -1237,6 +1245,7 @@ function clearEntryForm(confirmFirst = true) {
   currentPhotos  = {};
   currentEntryId = genId();
   currentGPS     = null;
+  currentExportStamp = null;
 
   document.getElementById('entryLocation').value = '';
   document.getElementById('entryDetails').value  = '';
@@ -1266,6 +1275,7 @@ function clearEntryForm(confirmFirst = true) {
   // Persist the clean state so an iOS page reload (common when returning
   // from camera) doesn't resurrect the entry we just saved.
   autoSaveCurrent();
+  updateIntegrityBadge();
 }
 
 // ============================================================================
@@ -1371,8 +1381,12 @@ function batchDeleteFiltered() {
   if (filterDate !== '__all__') parts.push(dateKeyLabel(filterDate));
   const scope = parts.length ? ` (${parts.join(', ')})` : ' — ALL saved entries';
 
+  const unexported = matches.filter(({ e }) => !e.exportedAt).length;
+  const expNote = unexported
+    ? `\n\n⚠️ ${unexported} of them ${unexported === 1 ? 'has' : 'have'} NO export record and may never have left the device!`
+    : '\n\nAll of them have an export record.';
   if (!confirm(
-    `Delete ${matches.length} entr${matches.length === 1 ? 'y' : 'ies'}${scope}?\n\n` +
+    `Delete ${matches.length} entr${matches.length === 1 ? 'y' : 'ies'}${scope}?${expNote}\n\n` +
     `Their stored photos will also be removed. This cannot be undone.`
   )) return;
 
@@ -1449,6 +1463,7 @@ function editEntry(index) {
 
   // Restore entry ID so IDB photo keys still match
   currentEntryId = entry.id || genId();
+  currentExportStamp = null;
 
   // Restore photos into base slots
   currentPhotos = {};
@@ -1528,6 +1543,7 @@ function saveEdit() {
     showToast('Add a location, details, or at least one photo first', true);
     return;
   }
+  if (!confirmPhotosSaved()) return;
 
   if (!document.getElementById('siteName').value.trim() &&
       !confirm('No Site / Session is set, so this entry will not be tied to a site.\n\nSave without a site name?')) {
@@ -1535,7 +1551,8 @@ function saveEdit() {
     return;
   }
 
-  savedEntries[editingIndex] = {
+  const prev = savedEntries[editingIndex];
+  const edited = {
     id:          currentEntryId,
     siteName:    document.getElementById('siteName').value.trim(),
     location:    location,
@@ -1543,9 +1560,11 @@ function saveEdit() {
     latitude:    currentGPS ? currentGPS.latitude  : null,
     longitude:   currentGPS ? currentGPS.longitude : null,
     gpsAccuracy: currentGPS ? currentGPS.accuracy  : null,
-    timestamp:   savedEntries[editingIndex].timestamp, // preserve original timestamp
+    timestamp:   prev.timestamp, // preserve original timestamp
     photos:      Object.assign({}, currentPhotos)
   };
+  if (exportStampStillValid(edited.photos, prev.exportedAt)) edited.exportedAt = prev.exportedAt;
+  savedEntries[editingIndex] = edited;
 
   saveAll();
   editingIndex = null;
@@ -1895,12 +1914,71 @@ async function loadPhotoBytes(dbKey, mimeType) {
   if (dataUrl) return { bytes: dataUrlToUint8Array(dataUrl), type: dataUrl.split(';')[0].split(':')[1] || mimeType || 'image/jpeg' };
   return null;
 }
-async function photoBytesExist(dbKey) {
-  if (!dbKey) return false;
-  if (await fsPhotoExists(dbKey)) return true;
-  if (idbAvailable) { try { const r = await getPhotoFromDB(dbKey); if (r && r.data) return true; } catch (e) {} }
-  try { if (localStorage.getItem('photo_full_' + dbKey)) return true; } catch (e) {}
-  return false;
+function entryLabel(e) { return e.location || e.siteName || '(unnamed)'; }
+
+// Entries that reference any of the given photo keys
+function entriesWithPhotoKeys(entries, keys) {
+  const s = new Set(keys);
+  return entries.filter(e => Object.values(e.photos || {}).some(p => p && s.has(p.dbKey)));
+}
+
+function missingSummary(entries, keys, limit) {
+  const affected = entriesWithPhotoKeys(entries, keys).map(entryLabel);
+  return 'Affected entries (' + affected.length + '): ' + affected.slice(0, limit).join(', ') + (affected.length > limit ? ', …' : '');
+}
+
+// Referenced photo keys that aren't in storage. Key-membership only, so it is
+// cheap enough to run before building an export.
+async function findMissingPhotoKeys(entries) {
+  let present; try { present = await presentPhotoKeySet(); } catch (e) { present = new Set(); }
+  const missing = new Set();
+  entries.forEach(e => Object.values(e.photos || {}).forEach(p => {
+    if (p && p.dbKey && !present.has(p.dbKey)) missing.add(p.dbKey);
+  }));
+  return Array.from(missing);
+}
+
+const EXPORT_MISSING_NOTE = 'Those full-res photos are not in storage — do NOT rely on this export for them. ' +
+  'The affected entries will not be marked exported.';
+
+function confirmMissingPhotos(entries, keys, target, okText, note) {
+  return confirm('⚠️ ' + keys.length + ' photo' + (keys.length === 1 ? '' : 's') +
+    ' could NOT be found and will be MISSING from ' + target + '.\n\n' +
+    missingSummary(entries, keys, 12) + '\n\n' + (note ? note + '\n\n' : '') +
+    'OK = ' + okText + '\nCancel = stop, keep everything as-is');
+}
+
+// Byte loader for exports that records every photo it could not read
+function trackedPhotoLoader() {
+  const missed = [];
+  return {
+    missed,
+    get: async (dbKey, mimeType) => {
+      const r = await loadPhotoBytes(dbKey, mimeType);
+      if (!r && dbKey) missed.push(dbKey);
+      return r;
+    }
+  };
+}
+
+// An export stamp stays valid while every photo predates it — a retake or a
+// newly added photo hasn't left the device yet.
+function exportStampStillValid(photos, at) {
+  return !!at && Object.values(photos || {}).every(p => !p || !p.timestamp || p.timestamp <= at);
+}
+
+// Entries must not be filed while a photo is still being written, and a photo
+// that failed to save needs an explicit decision while the scene is still there.
+function confirmPhotosSaved() {
+  if (Object.values(currentPhotos).some(p => p && pendingPhotoSaves.has(p))) {
+    showToast('A photo is still saving — try again in a moment', true);
+    return false;
+  }
+  const failed = getAllCurrentSlots().filter(s => currentPhotos[s] && currentPhotos[s].unsaved);
+  if (!failed.length) return true;
+  return confirm('⚠️ ' + failed.map(slotDisplayName).join(', ') + ' did NOT save to device storage and ' +
+    (failed.length === 1 ? 'will' : 'will all') + ' be missing from exports.\n\n' +
+    'Cancel = go back and retake (recommended)\nOK = save the entry anyway');
 }
 async function fsPresentKeySet() {
   const set = new Set(); const FS = fsPlugin(); if (!FS) return set;
@@ -1946,16 +2024,15 @@ function paintIntegrityBadge(total, missing, checking) {
 }
 async function runIntegrityCheck(verbose) {
   const uniq = Array.from(new Set(allReferencedPhotoKeys()));
-  paintIntegrityBadge(uniq.length, 0, true);
-  let present; try { present = await presentPhotoKeySet(); } catch (e) { present = new Set(); }
-  const missingKeys = uniq.filter(k => !present.has(k));
+  if (verbose) paintIntegrityBadge(uniq.length, 0, true);
+  const missingKeys = await findMissingPhotoKeys(savedEntries.concat([{ photos: currentPhotos }]));
   paintIntegrityBadge(uniq.length, missingKeys.length);
   if (verbose) {
     if (!uniq.length) { showToast('No photos to check yet.'); return; }
     if (!missingKeys.length) { alert('✅ All ' + uniq.length + ' photos are safe in device storage.'); return; }
-    const missSet = new Set(missingKeys); const affected = [];
-    savedEntries.forEach(e => { const ph = e.photos || {}; if (Object.keys(ph).some(s => ph[s] && missSet.has(ph[s].dbKey))) affected.push(e.location || e.siteName || '(unnamed)'); });
-    alert('⚠️ ' + missingKeys.length + ' of ' + uniq.length + ' photos are MISSING from storage.\n\nAffected entries (' + affected.length + '): ' + (affected.slice(0, 20).join(', ') + (affected.length > 20 ? ', …' : '')) + '\n\nRecover them from an earlier export that still has them, and export more often.');
+    alert('⚠️ ' + missingKeys.length + ' of ' + uniq.length + ' photos are MISSING from storage.\n\n' +
+      missingSummary(savedEntries, missingKeys, 20) +
+      '\n\nRecover them from an earlier export that still has them, and export more often.');
   }
 }
 let _integrityTimer = null;
@@ -1999,31 +2076,45 @@ function handlePhoto(input, slotId) {
 
       const hdg = pendingHeadings[slotId] || null;
       delete pendingHeadings[slotId];
-      currentPhotos[slotId] = Object.assign(
+      const info = Object.assign(
         { timestamp: ts, thumbnail, thumbV: THUMB_VERSION, fileType: 'image/jpeg', dbKey },
         hdg ? { hdgMag: hdg.mag, hdgAcc: hdg.acc } : {}
       );
+      currentPhotos[slotId] = info;
+      pendingPhotoSaves.add(info);
 
       const container = document.getElementById('photo_' + slotId);
       container.classList.add('has-photo');
       const hdgBadge = hdg ? `<span class="heading-badge">${facingCardinal(hdg.mag, currentGPS && currentGPS.latitude, currentGPS && currentGPS.longitude)}</span>` : '';
       container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">View</span><span class="saved-badge" style="background:rgba(224,164,74,0.9);">\u2026</span>${hdgBadge}`;
+      // Persist the reference before the byte write — iOS often reloads the
+      // page on return from the camera.
+      autoSaveCurrent();
 
       // Persist and CONFIRM it stuck; surface failures loudly.
-      const _res = await storePhotoBytes(dbKey, dataUrl);
-      if (_res.ok) {
-        currentPhotos[slotId].unsaved = false;
-        container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">View</span><span class="saved-badge">\u2713</span>${hdgBadge}`;
+      const res = await storePhotoBytes(dbKey, dataUrl);
+      pendingPhotoSaves.delete(info);
+      info.unsaved = !res.ok;
+
+      // The form may have moved on while the write was pending (edit/cancel/clear).
+      const onForm = currentPhotos[slotId] === info;
+      if (onForm) {
+        container.innerHTML = res.ok
+          ? `<img src="${dataUrl}"><span class="retake-badge">View</span><span class="saved-badge">\u2713</span>${hdgBadge}`
+          : `<img src="${dataUrl}"><span class="retake-badge">View</span><span class="saved-badge" style="background:rgba(200,40,40,0.95);">\u26a0 NOT SAVED</span>${hdgBadge}`;
+      } else if (savedEntries.some(en => Object.values(en.photos || {}).includes(info))) {
+        saveAll();
+        renderSavedPanel();
+      }
+      if (res.ok) {
         showToast(`${PHOTO_SLOT_NAMES[slotId] || 'Photo'} photo saved (~${sizeKB} KB)${hdg ? ' \u2022 Facing ' + facingCardinal(hdg.mag, currentGPS && currentGPS.latitude, currentGPS && currentGPS.longitude) : ''}`);
       } else {
-        currentPhotos[slotId].unsaved = true;
-        container.innerHTML = `<img src="${dataUrl}"><span class="retake-badge">View</span><span class="saved-badge" style="background:rgba(200,40,40,0.95);">\u26a0 NOT SAVED</span>${hdgBadge}`;
         showToast('\u26a0 Photo did NOT save \u2014 storage problem. Export & clear now.', true);
       }
       updateIntegrityBadge();
 
       // Auto-capture GPS with each photo (silent — no error toast if it fails)
-      if (!currentGPS) {
+      if (onForm && !currentGPS) {
         captureGPS(true).catch(() => {});
       }
 
@@ -2303,7 +2394,8 @@ function currentUnsavedEntry() {
     latitude:  currentGPS ? currentGPS.latitude  : null,
     longitude: currentGPS ? currentGPS.longitude : null,
     gpsAccuracy: currentGPS ? currentGPS.accuracy : null,
-    timestamp: new Date().toISOString(),
+    timestamp: (editingIndex !== null && savedEntries[editingIndex])
+      ? savedEntries[editingIndex].timestamp : new Date().toISOString(),
     photos:    Object.assign({}, currentPhotos)
   };
 }
@@ -2312,7 +2404,11 @@ function currentUnsavedEntry() {
 function collectExportEntries(siteF, dateF) {
   const all = JSON.parse(JSON.stringify(savedEntries));
   const cur = currentUnsavedEntry();
-  if (cur) all.push(cur);
+  if (cur) {
+    // While editing, the form holds a newer copy of a saved entry — export it in its place
+    const i = all.findIndex(e => e.id === cur.id);
+    if (i >= 0) all[i] = cur; else all.push(cur);
+  }
   return all.filter(e => entryMatches(e, siteF, dateF));
 }
 
@@ -2345,6 +2441,15 @@ async function runExport() {
   if (allEntries.length === 0) { showToast('No entries match the export filter', true); return; }
   if (typeof XLSX === 'undefined') { showToast('SheetJS not loaded — go online once first', true); return; }
 
+  // ---- INTEGRITY GUARD: never silently ship a short export ----
+  // Pre-flight is a cheap key check, so the user decides before any heavy work.
+  const preMissing = await findMissingPhotoKeys(allEntries);
+  if (preMissing.length &&
+      !confirmMissingPhotos(allEntries, preMissing, 'this export', 'export anyway (incomplete)', EXPORT_MISSING_NOTE)) {
+    showToast('Export cancelled — ' + preMissing.length + ' photos missing', true);
+    return;
+  }
+
   showToast('Building export…');
 
   let counter = parsed.num;
@@ -2353,16 +2458,8 @@ async function runExport() {
   const zip         = new JSZip();
   const photosFolder = zip.folder('photos');
   let photoCount    = 0;
-  let misses        = 0;
-  const missedKeys  = [];
-
-  async function getBytes(dbKey, mimeType) {
-    const r = await loadPhotoBytes(dbKey, mimeType);
-    if (r) return r;
-    misses++;
-    if (dbKey) missedKeys.push(dbKey);
-    return null;
-  }
+  const loader      = trackedPhotoLoader();
+  const getBytes    = loader.get;
 
   // PASS 1 — assign reference numbers, collect photo bytes
   // Iterate all photo keys in slot order: p_main, p_wide, then p_extra_0..N
@@ -2450,16 +2547,12 @@ async function runExport() {
   zip.file('Audit_Report_' + (zipSiteTag ? zipSiteTag + '_' : '') + datestamp() + '.xlsx', XLSX.write(wb, {bookType:'xlsx',type:'array'}));
   zip.file('Audit_Data_'   + (zipSiteTag ? zipSiteTag + '_' : '') + datestamp() + '.csv', csv);
 
-  // ---- INTEGRITY GUARD: never silently ship a short export ----
-  if (misses > 0) {
-    const missSet = new Set(missedKeys);
-    const affected = [];
-    allEntries.forEach(e => { const ph = e.photos || {}; if (Object.keys(ph).some(s => ph[s] && missSet.has(ph[s].dbKey))) affected.push(e.location || e.siteName || '(unnamed)'); });
-    const proceed = confirm('⚠️ ' + misses + ' photo(s) could NOT be found and will be MISSING from this export.\n\n' +
-      'Affected entries (' + affected.length + '): ' + (affected.slice(0, 12).join(', ') + (affected.length > 12 ? ', …' : '')) + '\n\n' +
-      'Those full-res photos are not in storage. Do NOT rely on this export for them.\n\n' +
-      'OK = export anyway (incomplete)\nCancel = stop, keep everything as-is');
-    if (!proceed) { showToast('Export cancelled — ' + misses + ' photos missing', true); return; }
+  // Photos present at pre-flight but unreadable now still need a decision
+  const lateMissing = loader.missed.filter(k => !preMissing.includes(k));
+  if (lateMissing.length &&
+      !confirmMissingPhotos(allEntries, lateMissing, 'this export', 'export anyway (incomplete)', EXPORT_MISSING_NOTE)) {
+    showToast('Export cancelled — ' + lateMissing.length + ' photos unreadable', true);
+    return;
   }
 
   try {
@@ -2481,23 +2574,32 @@ async function runExport() {
     });
 
     // Stamp the live entries (allEntries are clones — match by id) so the
-    // saved list can show which entries have an export record.
+    // saved list can show which entries have an export record. Entries with a
+    // photo missing from this ZIP haven't fully left the device — no stamp.
     const stampAt = new Date().toISOString();
-    const stampSet = new Set(allEntries.map(en => en.id).filter(Boolean));
+    const incomplete = new Set(entriesWithPhotoKeys(allEntries, preMissing.concat(loader.missed)).map(en => en.id));
+    const stampSet = new Set(allEntries.map(en => en.id).filter(id => id && !incomplete.has(id)));
     savedEntries.forEach(en => { if (stampSet.has(en.id)) en.exportedAt = stampAt; });
+    // The unsaved form entry isn't in savedEntries yet — Save & New applies this
+    if (editingIndex === null && stampSet.has(currentEntryId)) {
+      currentExportStamp = { id: currentEntryId, at: stampAt };
+      autoSaveCurrent();
+    }
     saveAll();
     renderSavedPanel();
 
-    // Clean up any localStorage fallback copies now that export succeeded.
-    // These are only needed if IDB was unavailable; once exported they're redundant.
+    // Drop localStorage fallback copies only where IndexedDB also holds the
+    // photo. When IDB is unavailable the fallback is the ONLY copy, and a
+    // filtered export covers only some entries anyway.
     try {
-      const fallbackKeys = [];
+      const idbKeys = new Set(idbAvailable ? await getAllPhotoKeys() : []);
+      const redundant = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('photo_full_')) fallbackKeys.push(k);
+        if (k && k.startsWith('photo_full_') && idbKeys.has(k.slice('photo_full_'.length))) redundant.push(k);
       }
-      fallbackKeys.forEach(k => localStorage.removeItem(k));
-      if (fallbackKeys.length > 0) console.log(`Cleaned ${fallbackKeys.length} localStorage fallback photo(s)`);
+      redundant.forEach(k => localStorage.removeItem(k));
+      if (redundant.length > 0) console.log(`Cleaned ${redundant.length} redundant localStorage fallback photo(s)`);
     } catch(e) {}
   } catch(e) {
     console.error('Export error:', e);
@@ -2531,6 +2633,14 @@ async function generatePhotoLog() {
   const bannerSite  = exportSites.length === 1 ? exportSites[0]
     : (siteF !== '__all__' && siteF !== '__none__' ? siteF : '');
 
+  // ---- INTEGRITY GUARD: never silently ship a Photo Log missing photos ----
+  const preMissing = await findMissingPhotoKeys(allEntries);
+  if (preMissing.length &&
+      !confirmMissingPhotos(allEntries, preMissing, 'this Photo Log', 'generate anyway (incomplete)')) {
+    showToast('Photo Log cancelled — ' + preMissing.length + ' photos missing', true);
+    return;
+  }
+
   showToast('Building Photo Log\u2026');
 
   const D = docx;
@@ -2538,16 +2648,8 @@ async function generatePhotoLog() {
   // -- Collect all photos in order with captions --
   let counter = parsed.num;
   const photoItems = []; // { bytes, type, caption, ref }
-  let misses       = 0;
-  const missedKeys = [];
-
-  async function getBytes(dbKey, mimeType) {
-    const r = await loadPhotoBytes(dbKey, mimeType);
-    if (r) return r;
-    misses++;
-    if (dbKey) missedKeys.push(dbKey);
-    return null;
-  }
+  const loader     = trackedPhotoLoader();
+  const getBytes   = loader.get;
 
   for (const entry of allEntries) {
     const allSlots = Object.keys(entry.photos || {}).sort((a, b) => {
@@ -2579,7 +2681,12 @@ async function generatePhotoLog() {
     }
   }
 
-  if (photoItems.length === 0) { showToast('No photos to export', true); return; }
+  if (photoItems.length === 0) {
+    showToast(loader.missed.length
+      ? 'No photos could be read — ' + loader.missed.length + ' missing from storage'
+      : 'No photos to export', true);
+    return;
+  }
 
 
   // -- Template constants matching Appendix C.2 --
@@ -2834,15 +2941,11 @@ async function generatePhotoLog() {
     }]
   });
 
-  // ---- INTEGRITY GUARD: never silently ship a Photo Log missing photos ----
-  if (misses > 0) {
-    const missSet = new Set(missedKeys);
-    const affected = [];
-    allEntries.forEach(e => { const ph = e.photos || {}; if (Object.keys(ph).some(s => ph[s] && missSet.has(ph[s].dbKey))) affected.push(e.location || e.siteName || '(unnamed)'); });
-    const proceed = confirm('⚠️ ' + misses + ' photo(s) could NOT be found and will be MISSING from this Photo Log.\n\n' +
-      'Affected entries (' + affected.length + '): ' + (affected.slice(0, 12).join(', ') + (affected.length > 12 ? ', …' : '')) + '\n\n' +
-      'OK = generate anyway (incomplete)\nCancel = stop');
-    if (!proceed) { showToast('Photo Log cancelled — ' + misses + ' photos missing', true); return; }
+  const lateMissing = loader.missed.filter(k => !preMissing.includes(k));
+  if (lateMissing.length &&
+      !confirmMissingPhotos(allEntries, lateMissing, 'this Photo Log', 'generate anyway (incomplete)')) {
+    showToast('Photo Log cancelled — ' + lateMissing.length + ' photos unreadable', true);
+    return;
   }
 
   try {
@@ -2998,7 +3101,7 @@ function handleBackupFile(event) {
         showToast(`Merged: ${added} new, ${entries.length - added} skipped`);
       }
 
-      try { localStorage.setItem(LS_SAVED, JSON.stringify(savedEntries)); } catch(e) {}
+      saveAll();
       renderSavedPanel();
       updateHeaderBadge();
       if (!action) showToast(`Loaded ${entries.length} entries`);
@@ -3019,7 +3122,8 @@ function normaliseEntry(e) {
     longitude: e.longitude != null ? e.longitude : null,
     gpsAccuracy: e.gpsAccuracy != null ? e.gpsAccuracy : null,
     timestamp: e.timestamp || '',
-    photos:    {}
+    photos:    {},
+    ...(typeof e.exportedAt === 'string' && e.exportedAt ? { exportedAt: e.exportedAt } : {})
   };
 }
 
@@ -3120,7 +3224,7 @@ function autoSaveCurrent() {
       siteName:      document.getElementById('siteName').value,
       entryLocation: document.getElementById('entryLocation').value,
       entryDetails:  document.getElementById('entryDetails').value,
-      currentPhotos, currentEntryId, extraPhotoSlots, currentGPS
+      currentPhotos, currentEntryId, extraPhotoSlots, currentGPS, currentExportStamp
     }));
     checkStorage();
   } catch(e) { showToast('Storage issue — export soon', true); }
@@ -3129,6 +3233,7 @@ function autoSaveCurrent() {
 function saveAll() {
   try { localStorage.setItem(LS_SAVED, JSON.stringify(savedEntries)); checkStorage(); }
   catch(e) { showToast('Storage error — export soon!', true); }
+  updateIntegrityBadge();
 }
 
 function loadAll() {
@@ -3149,6 +3254,7 @@ function loadAll() {
     currentPhotos  = state.currentPhotos  || {};
     currentEntryId = state.currentEntryId || genId();
     currentGPS     = state.currentGPS    || null;
+    currentExportStamp = state.currentExportStamp || null;
     updateGPSDisplay();
 
     // Restore any extra photo slots

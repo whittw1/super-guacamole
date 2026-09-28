@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "audit-photo-tool",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8741"],
-      "port": 8741
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "exec python3 -m http.server ${PORT:-8741}"],
+      "port": 8741,
+      "autoPort": true
     }
   ]
 }

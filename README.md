@@ -94,7 +94,7 @@ Each saved entry contains:
 
 ## Service Worker Strategy
 
-- **Cache version:** `audit-collector-v3.7` (bump on every `index.html` release to force refresh)
+- **Cache version:** `audit-collector-v3.8` (bump on every `index.html` release to force refresh)
 - **HTML:** Network-first — always tries to fetch latest, falls back to cache offline
 - **JS/assets:** Cache-first — served from cache, falls back to network
 - `self.skipWaiting()` + `clients.claim()` ensures immediate activation
@@ -103,6 +103,8 @@ Each saved entry contains:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v2.12 | 2026-09-28 | Review fixes: filtered exports no longer delete other entries' only-copy fallback photos; entries with missing photos aren't stamped exported; missing-photo check runs before the export is built; Save & New waits for pending photo writes and asks before filing a photo that failed to save; export stamp survives text edits, backup restore, and Save & New of an exported form entry; batch delete shows export status; editing no longer duplicates the entry in exports; integrity badge refreshes on every change |
+| v2.11 | 2026-08-05 | Photo safety: verified saves ("NOT SAVED" badge), header integrity badge, export integrity guard, persistent-storage request; per-entry export tracking (`exportedAt`, saved-list badges, delete-confirm status) |
 | v2.10 | 2026-07-31 | Tap a filled photo slot to view the photo full size (verification in the field); Retake moved into the viewer |
 | v2.9 | 2026-07-31 | Compass facing direction per photo (magnetometer at slot-tap, true-north conversion, cardinal labels, low-confidence suppression); Photo Facing column in CSV/XLSX |
 | v2.8 | 2026-07-31 | Satellite Site Map moved out to the DLA Site Notes app (port spec in that repo); export-log history for old map exports still renders |
